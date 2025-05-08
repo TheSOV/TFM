@@ -6,7 +6,6 @@ description = "TFM"
 authors     = ["TheSOV <sov.tele@gmail.com>"]
 readme      = "README.md"
 
-# ─────────────────────────  CORE (GPU-agnostic)  ─────────────────────────
 [tool.poetry.dependencies]
 python              = ">=3.10,<3.12"
 python-dotenv       = "1.1.0"
@@ -15,19 +14,18 @@ weaviate-client     = "4.14.1"
 langchain           = "0.3.25"
 sentence-transformers = "4.1.0"
 wheel               = "0.45.1"
-einops = "0.8.1"
+einops              = "0.8.1"
+crewai              = "0.119.0"
+crewai-tools        = "0.44.0"
 
-# ────────────────────────  SINGLE BACKEND SOURCE  ───────────────────────
 [[tool.poetry.source]]
 name     = "pytorch-cu118"
 url      = "https://download.pytorch.org/whl/cu118"
-priority = "explicit"      # Only used when a dependency explicitly names this source
+priority = "explicit"
 
-# ───────────────────────────  BACKEND GROUP  ────────────────────────────
 [tool.poetry.group.cu118.dependencies]
 torch = { version = "2.7.0+cu118", source = "pytorch-cu118" }
 
-# ────────────────────────────  BUILD SYSTEM  ────────────────────────────
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"

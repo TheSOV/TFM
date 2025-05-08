@@ -10,6 +10,28 @@ collections:
         max_length: -1
         generate_summary: false
 
+  - name: "kubernetes_fundamentals"
+    description: "Theoretical knowledge about Kubernetes. Contains information about the fundamentals of Kubernetes (concepts, architecture, etc.)."
+    dirs:
+      - "knowledge\\kubernetes-lab-tutorial-master\\content"
+    rules:
+      - include: ["*.md"]
+        exclude: []
+        min_length: 0
+        max_length: -1
+        generate_summary: false
+
+  - name: "kubernetes_fundamentals"
+    description: "Theoretical knowledge about Kubernetes. Contains information about the fundamentals of Kubernetes (concepts, architecture, etc.)."
+    dirs:
+      - "knowledge\\kubernetes-the-hard-way-master\\docs"
+    rules:
+      - include: ["*.md"]
+        exclude: []
+        min_length: 0
+        max_length: -1
+        generate_summary: false
+
   - name: "kubernetes_code"
     description: "Theoretical knowledge about Kubernetes. Contains information about the fundamentals of Kubernetes (concepts, architecture, etc.)."
     dirs:
@@ -20,6 +42,18 @@ collections:
         min_length: 0
         max_length: -1
         generate_summary: true
+
+  - name: "kubernetes_code"
+    description: "Theoretical knowledge about Kubernetes. Contains information about the fundamentals of Kubernetes (concepts, architecture, etc.)."
+    dirs:
+      - "knowledge\\kubernetes-lab-tutorial-master\\examples"
+    rules:
+      - include: ["*.yaml", "*.yml"]
+        exclude: []
+        min_length: 0
+        max_length: -1
+        generate_summary: true
+
 
   - name: "docker_fundamentals"
     description: "Theoretical knowledge about Docker. Contains information about the fundamentals of Docker (concepts, architecture, etc.)."
