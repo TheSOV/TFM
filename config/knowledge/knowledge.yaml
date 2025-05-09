@@ -13,7 +13,7 @@ collections:
   - name: "kubernetes_fundamentals"
     description: "Theoretical knowledge about Kubernetes. Contains information about the fundamentals of Kubernetes (concepts, architecture, etc.)."
     dirs:
-      - "knowledge\\kubernetes-lab-tutorial-master\\content"
+      - "knowledge\\kubernetes\\kubernetes-lab-tutorial-master\\content"
     rules:
       include: ["md"]
       exclude: [] 
@@ -24,7 +24,7 @@ collections:
   - name: "kubernetes_fundamentals"
     description: "Theoretical knowledge about Kubernetes. Contains information about the fundamentals of Kubernetes (concepts, architecture, etc.)."
     dirs:
-      - "knowledge\\kubernetes-the-hard-way-master\\docs"
+      - "knowledge\\kubernetes\\kubernetes-the-hard-way-master\\docs"
     rules:
       include: ["md"]
       exclude: []
@@ -46,7 +46,7 @@ collections:
   - name: "kubernetes_code"
     description: "Theoretical knowledge about Kubernetes. Contains information about the fundamentals of Kubernetes (concepts, architecture, etc.)."
     dirs:
-      - "knowledge\\kubernetes-lab-tutorial-master\\examples"
+      - "knowledge\\kubernetes\\kubernetes-lab-tutorial-master\\examples"
     rules:
       include: ["yaml", "yml"]
       exclude: []

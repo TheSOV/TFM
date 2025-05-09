@@ -8,6 +8,9 @@ readme      = "README.md"
 
 [tool.poetry.dependencies]
 python              = ">=3.10,<3.12"
+pyyaml              = "6.0.2"
+asyncio             = "3.4.3"
+litellm             = "1.68.0"
 python-dotenv       = "1.1.0"
 dependency-injector = "4.46.0"
 weaviate-client     = "4.14.1"
@@ -17,6 +20,7 @@ wheel               = "0.45.1"
 einops              = "0.8.1"
 crewai              = "0.119.0"
 crewai-tools        = "0.44.0"
+
 
 [[tool.poetry.source]]
 name     = "pytorch-cu118"

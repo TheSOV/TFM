@@ -5,6 +5,7 @@ from src.database.weviate import WeaviateHelper
 import logging
 import yaml
 import traceback
+import asyncio
 
 class IngestHelper:
     def __init__(self, 
@@ -42,15 +43,15 @@ class IngestHelper:
             num_retries=3,
         )
 
-    def _scan_and_embed_documents(self, dir: str, rules: dict):
+    def _scan_and_get_directories(self, dir: str, rules: dict):
         results = []
         failed_docs = []
 
         with os.scandir(dir) as it:
             for entry in it:
                 if entry.is_dir():
-                    # Recursively collect failed docs from subdirs
-                    _, sub_failed = self._scan_and_embed_documents(entry.path, rules)
+                    sub_results, sub_failed = self._scan_and_get_directories(entry.path, rules)
+                    results.extend(sub_results)
                     failed_docs.extend(sub_failed)
                 elif entry.is_file():
                     file_extension = entry.name.split(".")[-1]
@@ -74,12 +75,10 @@ class IngestHelper:
                         })
                         continue
 
-                    file_length = 0
-                    file_content = ""
                     try:
                         with open(entry.path, "r", encoding="utf-8") as f:
-                            file_length = len(f.read())
                             file_content = f.read()
+                            file_length = len(file_content)
                     except Exception as e:
                         tb = traceback.format_exc()
                         reason = f"Failed to read file: {e}"
@@ -102,6 +101,7 @@ class IngestHelper:
                             "summary": reason
                         })
                         continue
+
                     if rules["max_length"] != -1 and file_length > rules["max_length"]:
                         reason = f"File length is {file_length} characters, which is more than the maximum length of {rules['max_length']} characters."
                         self.logger.info(f"File '{entry.path}' skipped. Reason: {reason}")
@@ -112,33 +112,33 @@ class IngestHelper:
                             "summary": reason
                         })
                         continue
-
-                    try:
-                        docs, canonical_doc = self.late_chunking_helper.chunk_file(entry.path)
-                        summary = ""
-                        if rules["generate_summary"]:
-                            summary = self._generate_summary(file_content)
-                            summary = summary["choices"][0]["message"]["content"]  
-                            self.logger.info(f"Summary generated for file '{entry.path}'.")
-                        docs = self.late_chunking_helper.generate_late_chunking_embeddings(docs, canonical_doc)
-                        results.extend(docs)
-                        self.logger.info(f"{len(docs)} documents generated for file '{entry.path}'.")
-                    except Exception as e:
-                        tb = traceback.format_exc()
-                        reason = f"Failed to process file: {e}"
-                        self.logger.info(f"File '{entry.path}' skipped during processing. Reason: {reason}")
-                        failed_docs.append({
-                            "file": entry.path,
-                            "reason": reason,
-                            "traceback": tb,
-                            "summary": str(e)
-                        })
-                        continue
+                    
+                    results.append({
+                        "path": entry.path,
+                        "content": file_content,
+                        "file_extension": file_extension
+                    })
+                
         return results, failed_docs
+
+    async def _async_generate_all_summaries(self, docs):
+        semaphore = asyncio.Semaphore(10)
+        loop = asyncio.get_event_loop()
+        
+        async def sem_task(doc):
+            async with semaphore:
+                return await loop.run_in_executor(None, self._generate_summary, doc["content"])
+        
+        return await asyncio.gather(*[sem_task(doc) for doc in docs])
 
     def ingest_knowledge(self):
         failed_docs = []
-        config = self.knowledge_config_path
+        config_path = self.knowledge_config_path
+
+        with open(config_path, "r") as f:
+            config = yaml.safe_load(f)
+        if not config or "collections" not in config:
+            raise ValueError(f"Config file {self.knowledge_config_path} is empty or missing 'collections' key.")
 
         for collection in config["collections"]:
             with self.weaviate_helper.connect() as client:
@@ -148,24 +148,62 @@ class IngestHelper:
                         self.logger.info(f"Collection '{collection['name']}' deleted.")
                     else:
                         continue
-
-        with open(config, "r") as f:
-            config = yaml.safe_load(f)       
-
+ 
         for collection in config["collections"]:                
             self.weaviate_helper.create_collection(
-                collection_name=collection["name"], 
+                collection_name=collection["name"],
                 description=collection["description"]
             )
 
+            all_docs = []
+            all_failed = []
+            
             for dir in collection["dirs"]:
-                docs, failed_docs = self._scan_and_embed_documents(dir, collection["rules"])
-                failed_docs.extend(failed_docs)
-                self.weaviate_helper.batch_insert(docs, collection["name"])
-                self.logger.info(f"Documents inserted into collection '{collection['name']}'.")
+                docs, failed = self._scan_and_get_directories(dir, collection["rules"])
+                all_docs.extend(docs)
+                all_failed.extend(failed)
 
-            if failed_docs:
-                self.logger.info(f"Failed to process {len(failed_docs)} documents.")
+            # Separate docs that need summaries
+            needs_summary = collection["rules"].get("generate_summary", False)
+            docs_for_summary = all_docs if needs_summary else []
+            summaries = []
+
+            # Async summary generation if needed
+            if needs_summary and docs_for_summary:
+                try:
+                    summaries = asyncio.run(self._async_generate_all_summaries(docs_for_summary))
+                except RuntimeError:
+                    summaries = asyncio.get_event_loop().run_until_complete(self._async_generate_all_summaries(docs_for_summary))
+                for doc, summary in zip(docs_for_summary, summaries):
+                    try:
+                        doc["summary"] = summary["choices"][0]["message"]["content"]
+                    except Exception as e:
+                        doc["summary"] = ""
+                        self.logger.info(f"Failed to attach summary for file '{doc['path']}': {e}")
+
+            # Now chunk and embed
+            embedded_docs = []
+            for doc in all_docs:
+                try:
+                    # Pass summary for YAML files if present
+                    summary = doc.get("summary", "") if doc["file_extension"] in ["yaml", "yml"] else ""
+                    docs_chunks, canonical_doc = self.late_chunking_helper.chunk_file(doc["path"], summary=summary)
+                    embedded = self.late_chunking_helper.generate_late_chunking_embeddings(docs_chunks, canonical_doc)
+                    embedded_docs.extend(embedded)
+                except Exception as e:
+                    tb = traceback.format_exc()
+                    all_failed.append({
+                        "file": doc["path"],
+                        "reason": f"Failed during chunking/embedding: {e}",
+                        "traceback": tb,
+                        "summary": str(e)
+                    })
+            self.weaviate_helper.batch_insert(embedded_docs, collection["name"])
+            self.logger.info(f"Documents inserted into collection '{collection['name']}'.")
+
+            if all_failed:
+                self.logger.info(f"Failed to process {len(all_failed)} documents.")
+            failed_docs.extend(all_failed)
 
         return failed_docs
 
