@@ -23,7 +23,7 @@ class Container(containers.DeclarativeContainer):
 
     config.ingest_helper.knowledge_summary_model.from_env("INGEST_KNOWLEDGE_SUMMARY_MODEL", "gpt-4.1-nano")
     config.ingest_helper.knowledge_config_path.from_env("INGEST_KNOWLEDGE_CONFIG_PATH", "config/knowledge/knowledge.yaml")
-    config.ingest_helper.override_collection.from_env("INGEST_KNOWLEDGE_OVERRIDE_COLLECTION", as_=ast.literal_eval, default=True)
+    config.ingest_helper.override_collection.from_env("INGEST_KNOWLEDGE_OVERRIDE_COLLECTION", as_=ast.literal_eval, default="True")
 
     late_chunking_helper = providers.Singleton(LateChunkingHelper,
                                     model_name=config.late_chunking_helper.model_name,

@@ -23,11 +23,13 @@ Usage:
 """
 
 from dotenv import load_dotenv
+load_dotenv(override=True)   
+
 from src.containers import Container
 import logging
 
 logging.basicConfig(level=logging.INFO)
-load_dotenv()   
+
 container = Container()
 
 ingest_helper = container.ingest_helper()

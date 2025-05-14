@@ -266,7 +266,7 @@ class LateChunkingHelper:
             for doc in docs:
                 start, end = doc["late_chunking_metadata"]["token_span"]
                 if end > start:
-                    pooled = tok_emb[start:end].sum(dim=0)          # sum-pool
+                    pooled = tok_emb[start:end].mean(dim=0)          # mean-pool
                     # detach from GPU and move to CPU
                     doc["late_chunking_metadata"]["embedding"] = pooled.detach().cpu().float()
                 else:
@@ -302,8 +302,8 @@ class LateChunkingHelper:
                     convert_to_tensor=True,
                     task="retrieval.query",
                     prompt_name="retrieval.query")
-            # pool tokens to 1D vector (sum-pool)
-            pooled = tok_emb.sum(dim=0)
+            # pool tokens to 1D vector (mean-pool)
+            pooled = tok_emb.mean(dim=0)
             # detach and move to CPU
             return pooled.detach().cpu().float()
         except Exception as e:
@@ -316,11 +316,11 @@ class LateChunkingHelper:
         docs: List[dict],
         top_k: int | None = None,
         normalize: bool = True,
-    ) -> List[Tuple[dict, float]]:
+    ) -> List[dict]:
         """
         Rerank candidate chunks with the `separation` LoRA head.
 
-        Returns a list of (Document, score) sorted by descending score.
+        Returns a list of dicts with keys 'doc' (the document) and 'score' (the score), sorted by descending score.
         """
         self.logger.info("re_rank: %d docs, top_k=%s", len(docs), top_k)
         try:
@@ -356,7 +356,7 @@ class LateChunkingHelper:
             doc_matrix = torch.stack(embeddings)  # [N, dim]
             scores = (doc_matrix @ q_vec).squeeze(-1).cpu()
             order = torch.argsort(scores, descending=True)
-            ranked = [(docs[i], float(scores[i])) for i in order]
+            ranked = [{"doc": docs[i], "score": float(scores[i])} for i in order]
 
             self.logger.info("re_rank: returning %d ranked docs", len(ranked[:top_k] if top_k else ranked))
             return ranked[:top_k] if top_k else ranked
