@@ -339,6 +339,8 @@ class LateChunkingHelper:
             # --- 2. embed all documents ---
             embeddings = []
             for d in docs:
+                print(d)
+
                 emb = self.model.encode(
                     d["content"],
                     convert_to_tensor=True,

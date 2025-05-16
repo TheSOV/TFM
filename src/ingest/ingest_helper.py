@@ -7,14 +7,24 @@ import yaml
 import traceback
 import asyncio
 
+from dependency_injector.wiring import inject, Provide
+
 class IngestHelper:
-    def __init__(self, 
-    knowledge_summary_model: str,
-    knowledge_config_path: str,
-    override_collection: bool,
-    weaviate_helper: WeaviateHelper,
-    late_chunking_helper: LateChunkingHelper,
-    ):
+    """
+    Helper class for ingesting and summarizing knowledge, using dependency injection for helpers.
+    """
+    @inject
+    def __init__(
+        self,
+        knowledge_summary_model: str,
+        knowledge_config_path: str,
+        override_collection: bool,
+        weaviate_helper: WeaviateHelper = Provide["weaviate_helper"],
+        late_chunking_helper: LateChunkingHelper = Provide["late_chunking_helper"],
+    ) -> None:
+        """
+        Initialize IngestHelper with injected dependencies.
+        """
         self.knowledge_summary_model = knowledge_summary_model
         self.knowledge_config_path = knowledge_config_path
         self.override_collection = override_collection

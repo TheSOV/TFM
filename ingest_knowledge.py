@@ -31,6 +31,8 @@ import logging
 logging.basicConfig(level=logging.INFO)
 
 container = Container()
+# Wire the container to the ingest_helper module for dependency injection
+container.wire(modules=["src.ingest.ingest_helper"])
 
 ingest_helper = container.ingest_helper()
 failed_docs = ingest_helper.ingest_knowledge()

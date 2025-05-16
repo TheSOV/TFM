@@ -3,13 +3,19 @@ from dependency_injector import containers, providers
 from src.embeddings.late_chunking import LateChunkingHelper
 from src.database.weviate import WeaviateHelper
 from src.ingest.ingest_helper import IngestHelper
+from src.crewai.tools.yaml_editor_tools import YamlCreateTool, YamlEditTool, YamlReadTool
+
+from src.crewai.tools.rag_tool import RagTool
 
 import ast
 
 class Container(containers.DeclarativeContainer):
     config = providers.Configuration()
 
-        # ---------- load defaults / env overrides ----------
+    # Base directory for all YAML tool file operations
+    config.temp_files_dir.from_env("TEMP_FILES_DIR", default="temp")
+
+    # ---------- load defaults / env overrides ----------
     # This runs once when the module is imported
     config.late_chunking_helper.model_name.from_env("LATE_CHUNKING_MODEL_NAME", "jinaai/jina-embeddings-v3")
     config.late_chunking_helper.headers_to_split_on.from_env("LATE_CHUNKING_HEADERS_TO_SPLIT_ON", "[(\"#\", \"h1\"), (\"##\", \"h2\")]")
@@ -43,3 +49,12 @@ class Container(containers.DeclarativeContainer):
                                    override_collection=config.ingest_helper.override_collection,
                                    weaviate_helper=weaviate_helper,
                                    late_chunking_helper=late_chunking_helper)
+
+
+    # RAG tool for CrewAI agents
+    rag_tool = providers.Factory(RagTool)
+
+    # YAML editor tools for CrewAI agents, passing base_dir from config
+    yaml_create_tool = providers.Factory(YamlCreateTool, base_dir=config.temp_files_dir)
+    yaml_edit_tool = providers.Factory(YamlEditTool, base_dir=config.temp_files_dir)
+    yaml_read_tool = providers.Factory(YamlReadTool, base_dir=config.temp_files_dir)
