@@ -3,9 +3,10 @@ from dependency_injector import containers, providers
 from src.embeddings.late_chunking import LateChunkingHelper
 from src.database.weviate import WeaviateHelper
 from src.ingest.ingest_helper import IngestHelper
-from src.crewai.tools.yaml_editor_tools import YamlCreateTool, YamlEditTool, YamlReadTool
-
+# from src.crewai.tools.yaml_editor_tools import YamlCreateTool, YamlEditTool, YamlReadTool
+from src.crewai.tools.file_edit_tool import FileCreateTool, FileEditTool, FileReadTool
 from src.crewai.tools.rag_tool import RagTool
+from src.crewai.tools.config_validator import ConfigValidatorTool
 
 import ast
 
@@ -55,6 +56,13 @@ class Container(containers.DeclarativeContainer):
     rag_tool = providers.Factory(RagTool)
 
     # YAML editor tools for CrewAI agents, passing base_dir from config
-    yaml_create_tool = providers.Factory(YamlCreateTool, base_dir=config.temp_files_dir)
-    yaml_edit_tool = providers.Factory(YamlEditTool, base_dir=config.temp_files_dir)
-    yaml_read_tool = providers.Factory(YamlReadTool, base_dir=config.temp_files_dir)
+    # yaml_create_tool = providers.Singleton(YamlCreateTool, base_dir=config.temp_files_dir)
+    # yaml_edit_tool = providers.Singleton(YamlEditTool, base_dir=config.temp_files_dir)
+    # yaml_read_tool = providers.Singleton(YamlReadTool, base_dir=config.temp_files_dir)
+    
+    # File editor tools for CrewAI agents, passing base_dir from config
+    file_create_tool = providers.Singleton(FileCreateTool, base_dir=config.temp_files_dir)
+    file_edit_tool = providers.Singleton(FileEditTool, base_dir=config.temp_files_dir)
+    file_read_tool = providers.Singleton(FileReadTool, base_dir=config.temp_files_dir)
+    
+    config_validator_tool = providers.Singleton(ConfigValidatorTool, base_dir=config.temp_files_dir)

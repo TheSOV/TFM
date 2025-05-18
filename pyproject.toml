@@ -21,10 +21,11 @@ einops = "0.8.1"
 crewai = "0.119.0"
 crewai-tools = "0.44.0"
 weave = "0.51.46"
-yamlpath = "3.8.2"
 deepdiff = "8.5.0"
 checkov = "3.2.424"
-
+kubernetes-validate = "1.32.0"
+massedit = "0.70.0"
+yamllint = "^1.37.1"
 
 [[tool.poetry.source]]
 name     = "pytorch-cu118"

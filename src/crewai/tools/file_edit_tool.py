@@ -1,0 +1,472 @@
+"""
+File Editing Tool using massedit
+
+A set of tools for creating, editing, and reading files freely without structural constraints.
+Uses massedit library for file manipulation. Provides simple operations to:
+1. Create new files
+2. Edit existing files
+3. Read file content
+"""
+import logging
+import os
+from typing import List, Optional, Dict, Any, Type, Union, Literal
+from pathlib import Path
+
+from pydantic import BaseModel, Field, PrivateAttr
+from crewai.tools import BaseTool
+
+import massedit  # Library for mass editing text files
+
+_logger = logging.getLogger(__name__)
+
+class FileCreateRequest(BaseModel):
+    """
+    Request model for creating a new file.
+    
+    Attributes:
+        file_path (str): Path to the file to create, relative to base directory.
+        content (str): Content to write to the new file.
+    """
+    file_path: str = Field(..., description="Path to the file to create, relative to base directory")
+    content: str = Field(..., description="Content to write to the new file")
+
+
+class LineOperation(BaseModel):
+    """
+    Model for a line-specific operation in a file.
+    
+    Attributes:
+        line_number (int): The line number to operate on (1-based indexing).
+        operation (str): The type of operation ('add', 'replace', or 'delete').
+        content (Optional[str]): The content for 'add' or 'replace' operations.
+    """
+    line_number: int = Field(..., description="Line number to modify (1-based indexing)")
+    operation: Literal["add", "replace", "delete"] = Field(..., description="Operation type: 'add', 'replace', or 'delete'")
+    content: Optional[str] = Field(None, description="Content for add or replace operations")
+
+
+class FileEditRequest(BaseModel):
+    """
+    Request model for editing an existing file.
+    
+    Attributes:
+        file_path (str): Path to the file to edit, relative to base directory.
+        expressions (Optional[List[str]]): List of Python expressions to modify the file content.
+            Each expression must reference the 'line' variable.
+        content (Optional[str]): If provided, completely replaces the file content.
+            This takes precedence over expressions and line_operations.
+        line_operations (Optional[List[LineOperation]]): Line-specific operations.
+            Takes precedence over expressions, but not over content.
+    """
+    file_path: str = Field(..., description="Path to the file to edit, relative to base directory")
+    expressions: Optional[List[str]] = Field(None, 
+        description="List of Python expressions to modify each line. Use 'line' variable to reference current line.")
+    content: Optional[str] = Field(None, 
+        description="If provided, completely replaces the file content instead of using expressions")
+    line_operations: Optional[List[LineOperation]] = Field(None,
+        description="List of line-specific operations to perform on the file")
+
+
+class FileReadRequest(BaseModel):
+    """
+    Request model for reading a file.
+    
+    Attributes:
+        file_path (str): Path to the file to read, relative to base directory.
+    """
+    file_path: str = Field(..., description="Path to the file to read, relative to base directory")
+
+
+class FileCreateTool(BaseTool):
+    """
+    Tool for creating a new file with given content.
+    
+    Parameters:
+        base_dir (str | Path): The base directory for all file operations.
+    """
+    name: str = "file_create"
+    description: str = (
+        "Creates a new file with your specified content. If the file already exists, this tool will not work. "
+        "\n\nHOW TO USE THIS TOOL:\n"
+        "1. Choose a path and name for your new file (file_path)\n"
+        "2. Write the text content you want in the file (content)\n"
+        "\nIMPORTANT: For file paths, always use forward slashes ('/') not backslashes, like 'folder/my_file.txt'\n"
+        "\n\nEXAMPLES:\n"
+        "1. Create a simple text file:\n"
+        "   {\"file_path\": \"notes/reminder.txt\", \"content\": \"Remember to call John tomorrow.\"}\n"
+        "\n2. Create a Python script:\n"
+        "   {\"file_path\": \"scripts/hello.py\", \"content\": \"print('Hello world!')\\n# This is a comment\\nprint('Goodbye!')\"}\n"
+        "\n3. Create a multi-line document:\n"
+        "   {\"file_path\": \"docs/instructions.md\", \"content\": \"# Instructions\\n\\n1. Step one\\n2. Step two\\n3. Step three\"}"
+    )
+    args_schema: Type[BaseModel] = FileCreateRequest
+    _base_dir: Path = PrivateAttr()
+    
+    def __init__(self, base_dir: Union[str, Path], **kwargs) -> None:
+        """
+        Initialize the FileCreateTool.
+        
+        Args:
+            base_dir (str | Path): The base directory for all file operations.
+        """
+        super().__init__(**kwargs)
+        self._base_dir = Path(base_dir)
+    
+    def _run(self, file_path: str, content: str) -> Dict[str, Any]:
+        """
+        Create a new file with the specified content.
+        
+        Args:
+            file_path (str): Path to the file to create, relative to base_dir.
+                Use forward slashes ('/') for OS-agnostic paths.
+            content (str): Content to write to the new file.
+            
+        Returns:
+            Dict[str, Any]: Result of the operation, including success status and details.
+        """
+        try:
+            full_path = self._base_dir / file_path
+            
+            # Check if file already exists
+            if full_path.exists():
+                return {
+                    "success": False,
+                    "error": f"File {file_path} already exists. Use file_edit tool to modify existing files.",
+                    "details": {"path": str(full_path)}
+                }
+            
+            # Create parent directories if they don't exist
+            full_path.parent.mkdir(parents=True, exist_ok=True)
+            
+            # Write content to file
+            full_path.write_text(content, encoding="utf-8")
+            
+            return {
+                "success": True,
+                "message": f"File {file_path} created successfully.",
+                "details": {
+                    "path": str(full_path),
+                    "size": full_path.stat().st_size
+                }
+            }
+            
+        except Exception as e:
+            _logger.error(f"Error creating file {file_path}: {str(e)}")
+            return {
+                "success": False,
+                "error": f"Error creating file: {str(e)}",
+                "details": {"exception": str(e)}
+            }
+
+
+class FileEditTool(BaseTool):
+    """
+    Tool for editing an existing file using line operations, expressions, or complete content replacement.
+    
+    Parameters:
+        base_dir (str | Path): The base directory for all file operations.
+    """
+    name: str = "file_edit"
+    description: str = (
+        "Modifies an existing file in three different ways:\n"
+        "1. Direct line editing: Add, replace, or delete specific lines by their line number\n"
+        "2. Pattern-based changes: Apply text patterns to each line\n"
+        "3. Full replacement: Replace all file content at once\n"
+        "\nHOW TO USE THIS TOOL:\n"
+        "1. Specify which file you want to change (file_path)\n"
+        "2. Choose ONE of these methods to edit the file:\n"
+        "   - For line-by-line EDITING: provide 'line_operations' (list of operations on specific line numbers)\n"
+        "   - For pattern-based CHANGES: provide 'expressions' (list of text patterns to find and replace)\n"
+        "   - For COMPLETE replacement: provide 'content' (new text that will replace everything)\n"
+        "\nIMPORTANT: For file paths, always use forward slashes ('/') not backslashes, like 'folder/my_file.txt'\n"
+        "\n\nEXAMPLES FOR DIRECT LINE EDITING (EASIEST METHOD):\n"
+        "\n1. ADD a new line AFTER line 3:\n"
+        "   {\"file_path\": \"documents/notes.txt\", \"line_operations\": [{\"line_number\": 3, \"operation\": \"add\", \"content\": \"This is a new line\"}]}"
+        "\n2. REPLACE line 5 with new content:\n"
+        "   {\"file_path\": \"documents/notes.txt\", \"line_operations\": [{\"line_number\": 5, \"operation\": \"replace\", \"content\": \"This is the replacement line\"}]}"
+        "\n3. DELETE line 7:\n"
+        "   {\"file_path\": \"documents/notes.txt\", \"line_operations\": [{\"line_number\": 7, \"operation\": \"delete\"}]}"
+        "\n4. MULTIPLE operations (add line 2, replace line 5, delete line 8):\n"
+        "   {\"file_path\": \"documents/notes.txt\", \"line_operations\": ["
+        "     {\"line_number\": 2, \"operation\": \"add\", \"content\": \"New second line\"}, "
+        "     {\"line_number\": 5, \"operation\": \"replace\", \"content\": \"Updated fifth line\"}, "
+        "     {\"line_number\": 8, \"operation\": \"delete\"}"
+        "   ]}"
+        "\n\nEXAMPLES FOR PATTERN-BASED CHANGES:\n"
+        "\n1. REPLACE a specific word everywhere in the file:\n"
+        "   {\"file_path\": \"documents/letter.txt\", \"expressions\": [\"re.sub('old', 'new', line)\"]}"
+        "\n2. REPLACE an entire line containing specific text:\n"
+        "   {\"file_path\": \"documents/instructions.md\", \"expressions\": [\"'New content' if 'target text' in line else line\"]}"
+        "\n3. INSERT TEXT after specific text (for more complex operations):\n"
+        "   {\"file_path\": \"documents/notes.txt\", \"expressions\": [\"line.replace('target', 'target NEW TEXT')\"]}"
+        "\n\nEXAMPLES FOR COMPLETE REPLACEMENT:\n"
+        "\n1. Replace the entire file:\n"
+        "   {\"file_path\": \"documents/notes.txt\", \"content\": \"This is all new content.\\nEverything else is gone.\"}"
+    )
+    args_schema: Type[BaseModel] = FileEditRequest
+    _base_dir: Path = PrivateAttr()
+    
+    def __init__(self, base_dir: Union[str, Path], **kwargs) -> None:
+        """
+        Initialize the FileEditTool.
+        
+        Args:
+            base_dir (str | Path): The base directory for all file operations.
+        """
+        super().__init__(**kwargs)
+        self._base_dir = Path(base_dir)
+    
+    def _run(
+        self, 
+        file_path: str, 
+        expressions: Optional[List[str]] = None, 
+        content: Optional[str] = None,
+        line_operations: Optional[List[Dict[str, Any]]] = None
+    ) -> Dict[str, Any]:
+        """
+        Edit an existing file using one of three methods: expressions, content replacement, or line operations.
+        
+        Args:
+            file_path (str): Path to the file to edit, relative to base_dir.
+                Use forward slashes ('/') for OS-agnostic paths.
+            expressions (Optional[List[str]]): List of Python expressions to modify the file content.
+            content (Optional[str]): If provided, completely replaces the file content.
+            line_operations (Optional[List[Dict[str, Any]]]): List of line-specific operations to perform.
+            
+        Returns:
+            Dict[str, Any]: Result of the operation, including success status and details.
+            
+        Raises:
+            ValueError: If no valid edit operation is provided.
+        """
+        try:
+            full_path = self._base_dir / file_path
+            
+            # Check if file exists
+            if not full_path.exists():
+                return {
+                    "success": False,
+                    "error": f"File {file_path} does not exist. Use file_create tool to create a new file.",
+                    "details": {"path": str(full_path)}
+                }
+            
+            # Store original content for diff
+            original_content = full_path.read_text(encoding="utf-8")
+            original_lines = original_content.splitlines()
+            
+            # If content is provided, replace the entire file (highest precedence)
+            if content is not None:
+                full_path.write_text(content, encoding="utf-8")
+                return {
+                    "success": True,
+                    "message": f"File {file_path} content replaced successfully.",
+                    "details": {
+                        "path": str(full_path),
+                        "size": full_path.stat().st_size,
+                        "changes": "Full content replaced"
+                    }
+                }
+            
+            # If line operations are provided, apply them directly (second precedence)
+            elif line_operations is not None and len(line_operations) > 0:
+                # Convert to LineOperation objects to validate operations
+                validated_ops = []
+                for op in line_operations:
+                    try:
+                        validated_ops.append(LineOperation(**op))
+                    except Exception as e:
+                        return {
+                            "success": False,
+                            "error": f"Invalid line operation: {str(e)}",
+                            "details": {"operation": op}
+                        }
+                
+                # Sort operations by line number (descending) to avoid line number shifts
+                # This ensures delete/replace happens before add when considering same line number
+                validated_ops.sort(key=lambda x: (x.line_number, 0 if x.operation == "add" else -1), reverse=True)
+                
+                # Apply operations
+                changed_lines = original_lines.copy()
+                operations_applied = 0
+                
+                for op in validated_ops:
+                    # Adjust for zero-based indexing and validate line number
+                    index = op.line_number - 1
+                    if op.operation == "add":
+                        if 0 <= index <= len(changed_lines):
+                            if not op.content:
+                                return {
+                                    "success": False,
+                                    "error": f"Content is required for 'add' operation at line {op.line_number}",
+                                    "details": {"operation": op.dict()}
+                                }
+                            changed_lines.insert(index + 1, op.content)  # Add after the line_number
+                            operations_applied += 1
+                        else:
+                            return {
+                                "success": False,
+                                "error": f"Line number {op.line_number} out of range for 'add' operation",
+                                "details": {"operation": op.dict(), "file_lines": len(original_lines)}
+                            }
+                    elif op.operation == "replace":
+                        if 0 <= index < len(changed_lines):
+                            if not op.content:
+                                return {
+                                    "success": False,
+                                    "error": f"Content is required for 'replace' operation at line {op.line_number}",
+                                    "details": {"operation": op.dict()}
+                                }
+                            changed_lines[index] = op.content
+                            operations_applied += 1
+                        else:
+                            return {
+                                "success": False,
+                                "error": f"Line number {op.line_number} out of range for 'replace' operation",
+                                "details": {"operation": op.dict(), "file_lines": len(original_lines)}
+                            }
+                    elif op.operation == "delete":
+                        if 0 <= index < len(changed_lines):
+                            changed_lines.pop(index)
+                            operations_applied += 1
+                        else:
+                            return {
+                                "success": False,
+                                "error": f"Line number {op.line_number} out of range for 'delete' operation",
+                                "details": {"operation": op.dict(), "file_lines": len(original_lines)}
+                            }
+                
+                # Write the modified lines back to the file
+                new_content = "\n".join(changed_lines)
+                if len(changed_lines) > 0:  # Add final newline if there are lines
+                    new_content += "\n"
+                    
+                full_path.write_text(new_content, encoding="utf-8")
+                
+                return {
+                    "success": True,
+                    "message": f"File {file_path} edited successfully with {operations_applied} line operations.",
+                    "details": {
+                        "path": str(full_path),
+                        "size": full_path.stat().st_size,
+                        "operations_applied": operations_applied,
+                        "original_line_count": len(original_lines),
+                        "new_line_count": len(changed_lines)
+                    }
+                }
+            
+            # If expressions are provided, use massedit to apply them (third precedence)
+            elif expressions is not None and len(expressions) > 0:
+                # Convert Path to string for massedit
+                str_path = str(full_path)
+                
+                # Apply expressions to file using massedit
+                massedit.edit_files([str_path], expressions=expressions, dry_run=False)
+                
+                # Read new content to check changes
+                new_content = full_path.read_text(encoding="utf-8")
+                changes = "No changes" if original_content == new_content else f"{len(expressions)} expression(s) applied"
+                
+                return {
+                    "success": True,
+                    "message": f"File {file_path} edited successfully using expressions.",
+                    "details": {
+                        "path": str(full_path),
+                        "size": full_path.stat().st_size,
+                        "changes": changes,
+                        "expressions": expressions
+                    }
+                }
+            
+            else:
+                return {
+                    "success": False,
+                    "error": "No edit operation specified. Provide 'line_operations', 'expressions', or 'content'.",
+                    "details": {"path": str(full_path)}
+                }
+            
+        except Exception as e:
+            _logger.error(f"Error editing file {file_path}: {str(e)}")
+            return {
+                "success": False,
+                "error": f"Error editing file: {str(e)}",
+                "details": {"exception": str(e)}
+            }
+
+
+class FileReadTool(BaseTool):
+    """
+    Tool for reading the content of a file.
+    
+    Parameters:
+        base_dir (str | Path): The base directory for all file operations.
+    """
+    name: str = "file_read"
+    description: str = (
+        "Lets you see what's inside a file without changing anything. The file must exist for this tool to work. "
+        "\n\nHOW TO USE THIS TOOL:\n"
+        "1. Just tell the tool which file you want to read (file_path)\n"
+        "2. The tool will show you all the text inside that file\n"
+        "\nIMPORTANT: For file paths, always use forward slashes ('/') not backslashes, like 'folder/my_file.txt'\n"
+        "\n\nEXAMPLES:\n"
+        "1. Read a text file:\n"
+        "   {\"file_path\": \"documents/notes.txt\"}\n"
+        "\n2. Read a Python script:\n"
+        "   {\"file_path\": \"scripts/main.py\"}\n"
+        "\n3. Read a configuration file:\n"
+        "   {\"file_path\": \"config/settings.json\"}\n"
+        "\nAfter reading a file, you'll get back the complete text content, which you can then analyze or use with other tools."
+    )
+    args_schema: Type[BaseModel] = FileReadRequest
+    _base_dir: Path = PrivateAttr()
+    
+    def __init__(self, base_dir: Union[str, Path], **kwargs) -> None:
+        """
+        Initialize the FileReadTool.
+        
+        Args:
+            base_dir (str | Path): The base directory for all file operations.
+        """
+        super().__init__(**kwargs)
+        self._base_dir = Path(base_dir)
+    
+    def _run(self, file_path: str) -> Dict[str, Any]:
+        """
+        Read the content of a file.
+        
+        Args:
+            file_path (str): Path to the file to read, relative to base_dir.
+                Use forward slashes ('/') for OS-agnostic paths.
+            
+        Returns:
+            Dict[str, Any]: Result of the operation, including success status, file content, and details.
+        """
+        try:
+            full_path = self._base_dir / file_path
+            
+            # Check if file exists
+            if not full_path.exists():
+                return {
+                    "success": False,
+                    "error": f"File {file_path} does not exist.",
+                    "details": {"path": str(full_path)}
+                }
+            
+            # Read file content
+            content = full_path.read_text(encoding="utf-8")
+            
+            return {
+                "success": True,
+                "content": content,
+                "details": {
+                    "path": str(full_path),
+                    "size": full_path.stat().st_size
+                }
+            }
+            
+        except Exception as e:
+            _logger.error(f"Error reading file {file_path}: {str(e)}")
+            return {
+                "success": False,
+                "error": f"Error reading file: {str(e)}",
+                "details": {"exception": str(e)}
+            }

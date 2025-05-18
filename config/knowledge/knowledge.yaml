@@ -43,6 +43,17 @@ collections:
       max_length: -1
       generate_summary: true
 
+  - name: "kubernetes_checkov_problems"
+    description: "Descriptions and solutions for problems found by Checkov in the Kubernetes code. Inlcudes de ID of the problem, the description, the severity and the solution."
+    dirs:
+      - "knowledge\\checkov\\prisma-cloud-docs\\en\\enterprise-edition\\policy-reference\\kubernetes-policies\\kubernetes-policy-index"
+    rules:
+      include: ["adoc"]
+      exclude: []
+      min_length: 0
+      max_length: -1
+      generate_summary: false
+
   - name: "kubernetes_code"
     description: "Theoretical knowledge about Kubernetes. Contains information about the fundamentals of Kubernetes (concepts, architecture, etc.)."
     dirs:
@@ -78,3 +89,14 @@ collections:
       min_length: 0
       max_length: -1
       generate_summary: true
+
+  - name: "docker_checkov_problems"
+    description: "Descriptions and solutions for problems found by Checkov in the Docker code. Inlcudes de ID of the problem, the description, the severity and the solution."
+    dirs:
+      - "knowledge\\checkov\\prisma-cloud-docs\\en\\enterprise-edition\\policy-reference\\docker-policies\\docker-policy-index"
+    rules:
+      include: ["adoc"]
+      exclude: []
+      min_length: 0
+      max_length: -1
+      generate_summary: false
