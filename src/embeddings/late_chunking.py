@@ -8,6 +8,8 @@ import logging
 from sentence_transformers import SentenceTransformer
 import ast
 
+logger = logging.getLogger(__name__)
+
 class LateChunkingHelper:
     """
     Helper that:
@@ -15,7 +17,6 @@ class LateChunkingHelper:
       2. Rebuilds a canonical document & token-level spans
       3. Exposes three encoders with Jina-v3 task-LoRAs
     """
-
     def __init__(
         self,
         model_name: str = "jinaai/jina-embeddings-v3",
@@ -23,8 +24,7 @@ class LateChunkingHelper:
         max_chunk_chars: int = 2048,
         device: str = "cpu",
     ):
-        self.logger = logging.getLogger(__name__)
-        self.logger.info("Initialized LateChunkingHelper: device=%s, max_chunk_chars=%d", device, max_chunk_chars)
+        logger.info("Initialized LateChunkingHelper: device=%s, max_chunk_chars=%d", device, max_chunk_chars)
 
         # header levels
         if isinstance(headers_to_split_on, str):
@@ -234,7 +234,7 @@ class LateChunkingHelper:
         - .yaml/.yml: uses _yaml_chunking (summary used)
         - otherwise: uses _generic_chunking
         """
-        self.logger.info("chunk_file: processing path=%s", path)
+        logger.info("chunk_file: processing path=%s", path)
         try:
             ext = Path(path).suffix.lower()
             if ext == ".md":
@@ -245,14 +245,14 @@ class LateChunkingHelper:
                 return self._generic_chunking(path)
 
         except Exception as e:
-            self.logger.error("chunk_file error: %s", e)
+            logger.error("chunk_file error: %s", e)
             raise
 
     def generate_late_chunking_embeddings(self, docs: List[dict], canonical_doc: str):
         """
         Generate embeddings for a list of documents.
         """
-        self.logger.info("generate_late_chunking_embeddings: docs=%d", len(docs))
+        logger.info("generate_late_chunking_embeddings: docs=%d", len(docs))
         try:
             # get per-token embeddings with the *passage* adapter
             tok_emb = self.model.encode(
@@ -283,17 +283,17 @@ class LateChunkingHelper:
                 doc["late_chunking_metadata"]["sep_embedding"] = sep_emb.detach().cpu().float()
 
                 output.append(doc)
-            self.logger.info("generate_late_chunking_embeddings: completed embeddings for %d docs", len(output))
+            logger.info("generate_late_chunking_embeddings: completed embeddings for %d docs", len(output))
             return output
         except Exception as e:
-            self.logger.error("generate_late_chunking_embeddings error: %s", e)
+            logger.error("generate_late_chunking_embeddings error: %s", e)
             raise
 
     def generate_query_embedding(self, query) -> torch.Tensor:
         """
         Generate an embedding for a query.
         """
-        self.logger.info("generate_query_embedding: query='%s'", query)
+        logger.info("generate_query_embedding: query='%s'", query)
         try:
             # get per-token embeddings
             tok_emb = self.model.encode(
@@ -307,7 +307,7 @@ class LateChunkingHelper:
             # detach and move to CPU
             return pooled.detach().cpu().float()
         except Exception as e:
-            self.logger.error("generate_query_embedding error: %s", e)
+            logger.error("generate_query_embedding error: %s", e)
             raise
 
     def re_rank(
@@ -322,7 +322,7 @@ class LateChunkingHelper:
 
         Returns a list of dicts with keys 'doc' (the document) and 'score' (the score), sorted by descending score.
         """
-        self.logger.info("re_rank: %d docs, top_k=%s", len(docs), top_k)
+        logger.info("re_rank: %d docs, top_k=%s", len(docs), top_k)
         try:
             # --- 1. embed query with separation head ---
             q_vec = self.model.encode(
@@ -360,8 +360,8 @@ class LateChunkingHelper:
             order = torch.argsort(scores, descending=True)
             ranked = [{"doc": docs[i], "score": float(scores[i])} for i in order]
 
-            self.logger.info("re_rank: returning %d ranked docs", len(ranked[:top_k] if top_k else ranked))
+            logger.info("re_rank: returning %d ranked docs", len(ranked[:top_k] if top_k else ranked))
             return ranked[:top_k] if top_k else ranked
         except Exception as e:
-            self.logger.error("re_rank error: %s", e)
+            logger.error("re_rank error: %s", e)
             raise

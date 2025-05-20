@@ -1,7 +1,6 @@
 from typing import Type
 from crewai.tools import BaseTool
 from pydantic import BaseModel, Field
-from dependency_injector.wiring import inject, Provide
 from src.database.weviate import WeaviateHelper
 from src.embeddings.late_chunking import LateChunkingHelper
 from pydantic import PrivateAttr
@@ -13,7 +12,6 @@ class RagToolInput(BaseModel):
     collection: str = Field(..., description="Collection to search in.")
     retrieve_limit: Optional[int] = Field(25, description="Limit of results to initial retrieve, before reranking.")
     rerank_limit: Optional[int] = Field(10, description="Limit of results to return after reranking. This is the final number of results returned by the tool.")
-
 
 class RagTool(BaseTool):
     """
@@ -28,11 +26,10 @@ class RagTool(BaseTool):
     _weaviate_helper: WeaviateHelper = PrivateAttr()
     _late_chunking_helper: LateChunkingHelper = PrivateAttr()
 
-    @inject
     def __init__(
         self,
-        weaviate_helper: WeaviateHelper = Provide["weaviate_helper"],
-        late_chunking_helper: LateChunkingHelper = Provide["late_chunking_helper"],
+        weaviate_helper: WeaviateHelper,
+        late_chunking_helper: LateChunkingHelper,
         **kwargs
     ) -> None:
         """

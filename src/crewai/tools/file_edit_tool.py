@@ -9,6 +9,7 @@ Uses massedit library for file manipulation. Provides simple operations to:
 """
 import logging
 import os
+import difflib
 from typing import List, Optional, Dict, Any, Type, Union, Literal
 from pathlib import Path
 
@@ -100,7 +101,7 @@ class FileCreateTool(BaseTool):
         "   {\"file_path\": \"docs/instructions.md\", \"content\": \"# Instructions\\n\\n1. Step one\\n2. Step two\\n3. Step three\"}"
     )
     args_schema: Type[BaseModel] = FileCreateRequest
-    _base_dir: Path = PrivateAttr()
+    _base_dir: str = PrivateAttr()
     
     def __init__(self, base_dir: Union[str, Path], **kwargs) -> None:
         """
@@ -110,7 +111,7 @@ class FileCreateTool(BaseTool):
             base_dir (str | Path): The base directory for all file operations.
         """
         super().__init__(**kwargs)
-        self._base_dir = Path(base_dir)
+        self._base_dir = str(base_dir)
     
     def _run(self, file_path: str, content: str) -> Dict[str, Any]:
         """
@@ -125,10 +126,10 @@ class FileCreateTool(BaseTool):
             Dict[str, Any]: Result of the operation, including success status and details.
         """
         try:
-            full_path = self._base_dir / file_path
+            full_path = os.path.join(self._base_dir, file_path)
             
             # Check if file already exists
-            if full_path.exists():
+            if os.path.exists(full_path):
                 return {
                     "success": False,
                     "error": f"File {file_path} already exists. Use file_edit tool to modify existing files.",
@@ -136,17 +137,18 @@ class FileCreateTool(BaseTool):
                 }
             
             # Create parent directories if they don't exist
-            full_path.parent.mkdir(parents=True, exist_ok=True)
+            os.makedirs(os.path.dirname(full_path), exist_ok=True)
             
             # Write content to file
-            full_path.write_text(content, encoding="utf-8")
+            with open(full_path, "w", encoding="utf-8") as f:
+                f.write(content)
             
             return {
                 "success": True,
                 "message": f"File {file_path} created successfully.",
                 "details": {
-                    "path": str(full_path),
-                    "size": full_path.stat().st_size
+                    "path": full_path,
+                    "size": os.path.getsize(full_path)
                 }
             }
             
@@ -180,17 +182,18 @@ class FileEditTool(BaseTool):
         "   - For COMPLETE replacement: provide 'content' (new text that will replace everything)\n"
         "\nIMPORTANT: For file paths, always use forward slashes ('/') not backslashes, like 'folder/my_file.txt'\n"
         "\n\nEXAMPLES FOR DIRECT LINE EDITING (EASIEST METHOD):\n"
-        "\n1. ADD a new line AFTER line 3:\n"
-        "   {\"file_path\": \"documents/notes.txt\", \"line_operations\": [{\"line_number\": 3, \"operation\": \"add\", \"content\": \"This is a new line\"}]}"
-        "\n2. REPLACE line 5 with new content:\n"
-        "   {\"file_path\": \"documents/notes.txt\", \"line_operations\": [{\"line_number\": 5, \"operation\": \"replace\", \"content\": \"This is the replacement line\"}]}"
-        "\n3. DELETE line 7:\n"
-        "   {\"file_path\": \"documents/notes.txt\", \"line_operations\": [{\"line_number\": 7, \"operation\": \"delete\"}]}"
-        "\n4. MULTIPLE operations (add line 2, replace line 5, delete line 8):\n"
-        "   {\"file_path\": \"documents/notes.txt\", \"line_operations\": ["
-        "     {\"line_number\": 2, \"operation\": \"add\", \"content\": \"New second line\"}, "
-        "     {\"line_number\": 5, \"operation\": \"replace\", \"content\": \"Updated fifth line\"}, "
-        "     {\"line_number\": 8, \"operation\": \"delete\"}"
+        "1. ADD a new line AFTER line 3 (note: content cannot be empty):\n"
+        "   {\"file_path\": \"documents/notes.txt\", \"line_operations\": [{\"line_number\": 3, \"operation\": \"add\", \"content\": \"This is a new line\"}]}\n"
+        "   To add a blank line, use a space as content: {\"content\": \" \"}\n\n"
+        "2. REPLACE line 5 with new content (replaces the entire line):\n"
+        "   {\"file_path\": \"documents/notes.txt\", \"line_operations\": [{\"line_number\": 5, \"operation\": \"replace\", \"content\": \"This is the replacement line\"}]}\n\n"
+        "3. DELETE line 7 (only line_number and operation needed):\n"
+        "   {\"file_path\": \"documents/notes.txt\", \"line_operations\": [{\"line_number\": 7, \"operation\": \"delete\"}]}\n\n"
+        "4. MULTIPLE operations (add line 2, replace line 5, delete line 8):\n"
+        "   {\"file_path\": \"documents/notes.txt\", \"line_operations\": [\n"
+        "     {\"line_number\": 2, \"operation\": \"add\", \"content\": \"New second line\"},\n"
+        "     {\"line_number\": 5, \"operation\": \"replace\", \"content\": \"Updated fifth line\"},\n"
+        "     {\"line_number\": 8, \"operation\": \"delete\"}\n"
         "   ]}"
         "\n\nEXAMPLES FOR PATTERN-BASED CHANGES:\n"
         "\n1. REPLACE a specific word everywhere in the file:\n"
@@ -204,7 +207,7 @@ class FileEditTool(BaseTool):
         "   {\"file_path\": \"documents/notes.txt\", \"content\": \"This is all new content.\\nEverything else is gone.\"}"
     )
     args_schema: Type[BaseModel] = FileEditRequest
-    _base_dir: Path = PrivateAttr()
+    _base_dir: str = PrivateAttr()
     
     def __init__(self, base_dir: Union[str, Path], **kwargs) -> None:
         """
@@ -214,7 +217,7 @@ class FileEditTool(BaseTool):
             base_dir (str | Path): The base directory for all file operations.
         """
         super().__init__(**kwargs)
-        self._base_dir = Path(base_dir)
+        self._base_dir = str(base_dir)
     
     def _run(
         self, 
@@ -240,7 +243,7 @@ class FileEditTool(BaseTool):
             ValueError: If no valid edit operation is provided.
         """
         try:
-            full_path = self._base_dir / file_path
+            full_path = Path(self._base_dir) / file_path.replace("/", os.path.sep)
             
             # Check if file exists
             if not full_path.exists():
@@ -257,13 +260,24 @@ class FileEditTool(BaseTool):
             # If content is provided, replace the entire file (highest precedence)
             if content is not None:
                 full_path.write_text(content, encoding="utf-8")
+                
+                # Generate unified diff
+                diff = list(difflib.unified_diff(
+                    original_content.splitlines(keepends=True),
+                    content.splitlines(keepends=True),
+                    fromfile='original',
+                    tofile='modified',
+                    lineterm=''
+                ))
+                
                 return {
                     "success": True,
                     "message": f"File {file_path} content replaced successfully.",
                     "details": {
                         "path": str(full_path),
-                        "size": full_path.stat().st_size,
-                        "changes": "Full content replaced"
+                        "size": os.path.getsize(full_path),
+                        "changes": "Full content replaced",
+                        "diff": ''.join(diff)
                     }
                 }
             
@@ -342,6 +356,15 @@ class FileEditTool(BaseTool):
                     
                 full_path.write_text(new_content, encoding="utf-8")
                 
+                # Generate unified diff for line operations
+                diff = list(difflib.unified_diff(
+                    original_content.splitlines(keepends=True),
+                    new_content.splitlines(keepends=True),
+                    fromfile='original',
+                    tofile='modified',
+                    lineterm=''
+                ))
+                
                 return {
                     "success": True,
                     "message": f"File {file_path} edited successfully with {operations_applied} line operations.",
@@ -350,7 +373,8 @@ class FileEditTool(BaseTool):
                         "size": full_path.stat().st_size,
                         "operations_applied": operations_applied,
                         "original_line_count": len(original_lines),
-                        "new_line_count": len(changed_lines)
+                        "new_line_count": len(changed_lines),
+                        "diff": ''.join(diff)
                     }
                 }
             
@@ -366,6 +390,15 @@ class FileEditTool(BaseTool):
                 new_content = full_path.read_text(encoding="utf-8")
                 changes = "No changes" if original_content == new_content else f"{len(expressions)} expression(s) applied"
                 
+                # Generate unified diff for expressions
+                diff = list(difflib.unified_diff(
+                    original_content.splitlines(keepends=True),
+                    new_content.splitlines(keepends=True),
+                    fromfile='original',
+                    tofile='modified',
+                    lineterm=''
+                ))
+                
                 return {
                     "success": True,
                     "message": f"File {file_path} edited successfully using expressions.",
@@ -373,7 +406,8 @@ class FileEditTool(BaseTool):
                         "path": str(full_path),
                         "size": full_path.stat().st_size,
                         "changes": changes,
-                        "expressions": expressions
+                        "expressions": expressions,
+                        "diff": ''.join(diff)
                     }
                 }
             

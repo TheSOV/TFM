@@ -25,16 +25,13 @@ Usage:
 from dotenv import load_dotenv
 load_dotenv(override=True)   
 
-from src.containers import Container
 import logging
-
 logging.basicConfig(level=logging.INFO)
 
-container = Container()
-# Wire the container to the ingest_helper module for dependency injection
-container.wire(modules=["src.ingest.ingest_helper"])
+from src.services_registry.services import init_services, get
 
-ingest_helper = container.ingest_helper()
+init_services()
+ingest_helper = get("ingest_helper")
 failed_docs = ingest_helper.ingest_knowledge()
 
 print(failed_docs)

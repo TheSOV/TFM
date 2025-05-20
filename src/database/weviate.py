@@ -7,10 +7,11 @@ from weaviate.classes.config import Configure
 from weaviate.classes.data import DataObject
 from weaviate.util import generate_uuid5
 
+logger = logging.getLogger(__name__)
+
 class WeaviateHelper:
     def __init__(self, weaviate_api_key: str, weaviate_host: str, weaviate_port: str, weaviate_grpc_port: str):
         # Best practice: store your credentials in environment variables
-        self.logger = logging.getLogger(__name__)
         self.weaviate_api_key = weaviate_api_key
         self.weaviate_host = weaviate_host
         self.weaviate_port = weaviate_port
@@ -20,7 +21,7 @@ class WeaviateHelper:
         return weaviate.connect_to_local(
             auth_credentials=Auth.api_key(self.weaviate_api_key),
             host=self.weaviate_host,
-            port=self.weaviate_port,
+            port=self.weaviate_port,    
             grpc_port=self.weaviate_grpc_port,
         )
 
@@ -32,9 +33,9 @@ class WeaviateHelper:
                     description=description,
                     vectorizer_config=Configure.Vectorizer.none(),
                 )
-                self.logger.info(f"Collection '{collection_name}' created.")
+                logger.info(f"Collection '{collection_name}' created.")
             else:
-                self.logger.info(f"Collection '{collection_name}' already exists.")
+                logger.info(f"Collection '{collection_name}' already exists.")
 
     def batch_insert(self, docs: list[dict], collection_name: str):
         with self.connect() as client:

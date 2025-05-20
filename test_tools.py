@@ -9,6 +9,7 @@ from src.containers import Container
 container = Container()
 container.wire(modules=["src.crewai.tools.utils"])
 
+
 from pprint import pprint
 
 
@@ -34,12 +35,15 @@ if __name__ == "__main__":
     # )
     # pprint(result)
     
-    tool = container.config_validator_tool()
-    result = tool.run(
-        file_path="nginx-prod.yaml",
-        file_type="kubernetes",
-        enable_security_scan=True,
-        skip_checks=[]
-    )
-    pprint(result)
+    # tool = container.config_validator_tool()
+    # result = tool.run(
+    #     file_path="nginx-prod.yaml",
+    #     file_type="kubernetes",
+    #     enable_security_scan=True,
+    #     skip_checks=[]
+    # )
+    # pprint(result)
 
+    read_tool = container.file_read_tool()
+    result = read_tool.run(file_path="nginx-prod.yaml")
+    pprint(result)

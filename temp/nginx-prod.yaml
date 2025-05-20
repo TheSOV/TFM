@@ -1,116 +1,41 @@
-apiVeasdrsion: apps/v1
+apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: nginx-prod
-  namespace: production
+  name: nginx
   labels:
-    app: nginx-prod
+    app: nginx
 spec:
   replicas: 3
   selector:
     matchLabels:
-      app: nginx-prod
+      app: nginx
   template:
     metadata:
       labels:
-        app: nginx-prod
+        app: nginx
     spec:
-      securityContext:
-        runAsNonRoot: true
-        runAsUser: 10000
-        runAsGroup: 10000
-        fsGroup: 2000
       containers:
-      - name: nginx
-        image: nginx@sha256:4910a70435cc84b7caf377a5612f671504409fe98bd40d4f5a502e3d26f2ffcd
+         ports: 
         imagePullPolicy: Always
-        ports:
-        - containerPort: 80
+        image: nginx:stable
+          - containerPort: 80
+          allowPrivilegeEscalation: false
         resources:
           requests:
-            cpu: "250m"
-            memory: "256Mi"
-          limits:
             cpu: "500m"
-            memory: "512Mi"
-        readinessProbe:
-          httpGet:
-            path: /
-            port: 80
-          initialDelaySeconds: 10
-          periodSeconds: 10
-          failureThreshold: 3
-        livenessProbe:
-          httpGet:
-            path: /
-            port: 80
-          initialDelaySeconds: 15
-          periodSeconds: 20
-          failureThreshold: 3
-        securityContext:
-          allowPrivilegeEscalation: false
-          readOnlyRootFilesystem: true
-          capabilities:
-            drop:
-              - ALL
-        securityContext:
-          seccompProfile:
-            type: RuntimeDefault
-      automountServiceAccountToken: false
-      serviceAccountName: nginx-prod-service-account
+            memory: "128Mi"
+          limits:
+            cpu: "1"
+            memory: "256Mi"
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: nginx-prod-svc
-  namespace: production
-  labels:
-    app: nginx-prod
+  name: nginx-service
 spec:
-  selector:
-    app: nginx-prod
+  type: LoadBalancer
   ports:
-  - protocol: TCP
-    port: 80
-    targetPort: 80
-  type: ClusterIP
----
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: nginx-prod-ingress
-  namespace: production
-  annotations:
-    nginx.ingress.kubernetes.io/rewrite-target: /  # Basic rewrite if needed
-spec:
-  ingressClassName: nginx
-  rules:
-  - http:
-      paths:
-      - path: /
-        pathType: Prefix
-        backend:
-          service:
-            name: nginx-prod-svc
-            port:
-              number: 80
-# Note: The ingress controller must be configured externally to listen on port 5010 and route to this ingress.
----
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: nginx-prod-network-policy
-  namespace: production
-spec:
-  podSelector:
-    matchLabels:
-      app: nginx-prod
-  policyTypes:
-  - Ingress
-  - Egress
-  ingress:
-  - from:
-    - podSelector: {}
-  egress:
-  - to:
-    - podSelector: {}
+    - port: 5010
+      targetPort: 80
+  selector:
+    app: nginx

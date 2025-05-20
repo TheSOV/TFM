@@ -6,21 +6,21 @@ import logging
 import yaml
 import traceback
 import asyncio
+import logging
 
-from dependency_injector.wiring import inject, Provide
+logger = logging.getLogger(__name__)
 
 class IngestHelper:
     """
     Helper class for ingesting and summarizing knowledge, using dependency injection for helpers.
     """
-    @inject
     def __init__(
         self,
         knowledge_summary_model: str,
         knowledge_config_path: str,
         override_collection: bool,
-        weaviate_helper: WeaviateHelper = Provide["weaviate_helper"],
-        late_chunking_helper: LateChunkingHelper = Provide["late_chunking_helper"],
+        weaviate_helper: WeaviateHelper,
+        late_chunking_helper: LateChunkingHelper
     ) -> None:
         """
         Initialize IngestHelper with injected dependencies.
@@ -30,7 +30,6 @@ class IngestHelper:
         self.override_collection = override_collection
         self.weaviate_helper = weaviate_helper
         self.late_chunking_helper = late_chunking_helper
-        self.logger = logging.getLogger(__name__)
 
     def _generate_summary(self, content: str):
         
@@ -76,7 +75,7 @@ class IngestHelper:
                         skip_reason = f"File extension '{file_extension}' is in exclude list {rules['exclude']}"
 
                     if skip_reason:
-                        self.logger.info(f"File '{entry.path}' skipped. Reason: {skip_reason}")
+                        logger.info(f"File '{entry.path}' skipped. Reason: {skip_reason}")
                         failed_docs.append({
                             "file": entry.path,
                             "reason": skip_reason,
@@ -92,7 +91,7 @@ class IngestHelper:
                     except Exception as e:
                         tb = traceback.format_exc()
                         reason = f"Failed to read file: {e}"
-                        self.logger.info(f"File '{entry.path}' skipped. Reason: {reason}")
+                        logger.info(f"File '{entry.path}' skipped. Reason: {reason}")
                         failed_docs.append({
                             "file": entry.path,
                             "reason": reason,
@@ -103,7 +102,7 @@ class IngestHelper:
 
                     if rules["min_length"] != -1 and file_length < rules["min_length"]:
                         reason = f"File length is {file_length} characters, which is less than the minimum length of {rules['min_length']} characters."
-                        self.logger.info(f"File '{entry.path}' skipped. Reason: {reason}")
+                        logger.info(f"File '{entry.path}' skipped. Reason: {reason}")
                         failed_docs.append({
                             "file": entry.path,
                             "reason": reason,
@@ -114,7 +113,7 @@ class IngestHelper:
 
                     if rules["max_length"] != -1 and file_length > rules["max_length"]:
                         reason = f"File length is {file_length} characters, which is more than the maximum length of {rules['max_length']} characters."
-                        self.logger.info(f"File '{entry.path}' skipped. Reason: {reason}")
+                        logger.info(f"File '{entry.path}' skipped. Reason: {reason}")
                         failed_docs.append({
                             "file": entry.path,
                             "reason": reason,
@@ -155,7 +154,7 @@ class IngestHelper:
                 if client.collections.exists(collection["name"]):
                     if self.override_collection:
                         client.collections.delete(collection["name"])
-                        self.logger.info(f"Collection '{collection['name']}' deleted.")
+                        logger.info(f"Collection '{collection['name']}' deleted.")
                     else:
                         continue
  
@@ -189,7 +188,7 @@ class IngestHelper:
                         doc["summary"] = summary["choices"][0]["message"]["content"]
                     except Exception as e:
                         doc["summary"] = ""
-                        self.logger.info(f"Failed to attach summary for file '{doc['path']}': {e}")
+                        logger.info(f"Failed to attach summary for file '{doc['path']}': {e}")
 
             # Now chunk and embed
             embedded_docs = []
@@ -209,10 +208,10 @@ class IngestHelper:
                         "summary": str(e)
                     })
             self.weaviate_helper.batch_insert(embedded_docs, collection["name"])
-            self.logger.info(f"Documents inserted into collection '{collection['name']}'.")
+            logger.info(f"Documents inserted into collection '{collection['name']}'.")
 
             if all_failed:
-                self.logger.info(f"Failed to process {len(all_failed)} documents.")
+                logger.info(f"Failed to process {len(all_failed)} documents.")
             failed_docs.extend(all_failed)
 
         return failed_docs
