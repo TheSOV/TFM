@@ -19,7 +19,7 @@ class RagTool(BaseTool):
     Uses dependency injection for its dependencies.
     The description is dynamically generated based on available collections.
     """
-    name: str = "RAG Tool"
+    name: str = "rag_tool"
     args_schema: Type[BaseModel] = RagToolInput
     description: Optional[str] = None
 
@@ -42,7 +42,7 @@ class RagTool(BaseTool):
         self._late_chunking_helper = late_chunking_helper
 
         # Set dynamic description if helpers are available
-        desc = "Tool to search in the knowledge base. Specify the query and the collection to search in. "
+        desc = "The rag_tool is used to search in the knowledge base. Specify the query and the collection to search in. "
         if self._weaviate_helper is not None:
             try:
                 collections = []

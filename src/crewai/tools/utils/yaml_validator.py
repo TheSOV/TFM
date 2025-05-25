@@ -21,18 +21,60 @@ def run_yamllint(content: str, config_path: Optional[str] = None) -> List[Dict[s
     Returns:
         List[Dict[str, Any]]: List of validation issues found by yamllint
     """
-    # Use default configuration if none specified
+    # Create a custom configuration that disables indentation and line-length rules
+    config_str = '''
+    extends: default
+    rules:
+      key-duplicates: enable
+      line-length: disable
+      indentation: disable
+      trailing-spaces: disable
+      document-start: disable
+      braces: disable
+      brackets: disable
+      comments: disable
+      comments-indentation: disable
+      document-end: disable
+      empty-lines: disable
+      empty-values: disable
+      hyphens: disable
+      key-ordering: disable
+      new-line-at-end-of-file: disable
+      new-lines: disable
+      quoted-strings: disable
+    '''
+    
+    # If a config file is provided, merge it with our custom config
     if config_path:
-        conf = YamlLintConfig(file=config_path)
-    else:
-        # Default config that enables duplicate key detection
-        config_str = '''
-        extends: default
-        rules:
-          key-duplicates: enable
-          document-start: disable
-        '''
-        conf = YamlLintConfig(config_str)
+        with open(config_path, 'r') as f:
+            user_config = yaml.safe_load(f) or {}
+        
+        # Ensure rules exist in user config
+        if 'rules' not in user_config:
+            user_config['rules'] = {}
+            
+        # Force disable the rules we want to ignore
+        user_config['rules']['line-length'] = 'disable'
+        user_config['rules']['indentation'] = 'disable'
+        user_config['rules']['trailing-spaces'] = 'disable'
+        user_config['rules']['document-start'] = 'disable'
+        user_config['rules']['braces'] = 'disable'
+        user_config['rules']['brackets'] = 'disable'
+        user_config['rules']['comments'] = 'disable'
+        user_config['rules']['comments-indentation'] = 'disable'
+        user_config['rules']['document-end'] = 'disable'
+        user_config['rules']['empty-lines'] = 'disable'
+        user_config['rules']['empty-values'] = 'disable'
+        user_config['rules']['hyphens'] = 'disable'
+        user_config['rules']['key-ordering'] = 'disable'
+        user_config['rules']['new-line-at-end-of-file'] = 'disable'
+        user_config['rules']['new-lines'] = 'disable'
+        user_config['rules']['quoted-strings'] = 'disable'
+        
+        # Convert back to string for YamlLintConfig
+        config_str = yaml.safe_dump(user_config)
+    
+    conf = YamlLintConfig(content=config_str)
     
     # Run yamllint
     problems = linter.run(content, conf)

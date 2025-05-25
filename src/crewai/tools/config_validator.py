@@ -1,7 +1,5 @@
 """
-Configuration Validation Tool
-
-Validates configuration files including Kubernetes manifests, Docker Compose files,
+The config_validator tool validates configuration files including Kubernetes manifests, Docker Compose files,
 and other YAML/JSON configuration files. Uses various validation backends including
 Checkov for security scanning.
 """
@@ -39,7 +37,7 @@ class ValidationRequest(BaseModel):
 
 class ConfigValidatorTool(BaseTool):
     """
-    Validates configuration files including Kubernetes manifests, Docker Compose files,
+    The config_validator tool validates configuration files including Kubernetes manifests, Docker Compose files,
     and other YAML configuration files.
     
     Parameters:
@@ -47,7 +45,7 @@ class ConfigValidatorTool(BaseTool):
     """
     name: str = "config_validator"
     description: str = (
-        "Validates configuration files including Kubernetes manifests, Docker Compose files, "
+        "The config_validator tool validates configuration files including Kubernetes manifests, Docker Compose files, "
         "and other YAML configuration files. Returns a detailed validation report."
     )
     args_schema: type[BaseModel] = ValidationRequest
@@ -108,8 +106,10 @@ class ConfigValidatorTool(BaseTool):
             # No summary field - it's redundant with other information
         }
         
-        try:            
-            full_path = self._base_dir / file_path
+        try:
+            # Convert path separators to be OS-agnostic
+            normalized_path = file_path.replace("/", os.path.sep)
+            full_path = Path(str(self._base_dir)) / normalized_path
             
             # 1. Basic YAML validation (now with multi-document support)
             try:

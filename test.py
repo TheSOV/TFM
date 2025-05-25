@@ -1,7 +1,15 @@
 from src.crewai.crews.devops_crew.devops_crew import DevopsCrew
 import weave
 from dotenv import load_dotenv
+
+
 load_dotenv(override=True)
+
+import warnings
+from pydantic.warnings import PydanticDeprecatedSince211   # new in 2.11+
+
+warnings.filterwarnings("ignore", category=PydanticDeprecatedSince211)
+
 
 from src.services_registry.services import init_services
 

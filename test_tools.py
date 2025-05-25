@@ -1,14 +1,8 @@
-from src.crewai.tools.config_validator import ConfigValidatorTool
-from src.crewai.tools.utils.checkov_validator import run_checkov_scan
-from src.crewai.tools.utils.docker_validator import validate_docker_compose
-from src.crewai.tools.utils.kubernetes_validator import validate_kubernetes_manifest
-from src.crewai.tools.utils.yaml_validator import validate_yaml_file
+from src.services_registry.services import get, init_services
+from dotenv import load_dotenv
+load_dotenv(override=True)
 
-from src.containers import Container
-
-container = Container()
-container.wire(modules=["src.crewai.tools.utils"])
-
+init_services()
 
 from pprint import pprint
 
@@ -44,6 +38,15 @@ if __name__ == "__main__":
     # )
     # pprint(result)
 
-    read_tool = container.file_read_tool()
-    result = read_tool.run(file_path="nginx-prod.yaml")
+    # read_tool = container.file_read_tool()
+    # result = read_tool.run(file_path="nginx-prod.yaml")
+    # pprint(result)
+
+    validation_tool = get("config_validator")
+    result = validation_tool._run(
+        file_path="nginx-prod.yaml",
+        file_type="kubernetes",
+        enable_security_scan=True,
+        skip_checks=[]
+    )
     pprint(result)

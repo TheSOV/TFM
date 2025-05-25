@@ -61,4 +61,6 @@ class DevopsCrew:
             tasks=self.tasks,    # Automatically collected by the @task decorator. 
             process=Process.sequential,
             verbose=True,
+            planning=False,
+            planning_llm="gpt-4.1-mini"
         )

@@ -1,0 +1,20 @@
+{
+    "mcpProxy": {
+      "addr": ":9000",
+      "baseURL": "http://127.0.0.1:9000",
+      "options": { "logEnabled": true }
+    },
+  
+    "mcpServers": {
+      "fs": {
+        "command": "docker",
+        "args": [
+          "run", "--rm", "-i",                   
+          "-v", "D:\\Python\\MasterIA\\TFM\\TFM\\TFM\\temp:/projects",
+          "ghcr.io/mark3labs/mcp-filesystem-server:latest",
+          "/projects"
+        ]
+      }
+    }
+  }
+  

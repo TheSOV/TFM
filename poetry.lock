@@ -1149,14 +1149,14 @@ files = [
 
 [[package]]
 name = "crewai"
-version = "0.119.0"
+version = "0.121.0"
 description = "Cutting-edge framework for orchestrating role-playing, autonomous AI agents. By fostering collaborative intelligence, CrewAI empowers agents to work together seamlessly, tackling complex tasks."
 optional = false
 python-versions = "<3.13,>=3.10"
 groups = ["main"]
 files = [
-    {file = "crewai-0.119.0-py3-none-any.whl", hash = "sha256:c6d3a447e97a30924df2151f7219e1721506415e062fa2d6d13e3c3550cfa94e"},
-    {file = "crewai-0.119.0.tar.gz", hash = "sha256:1cba70ad29399d057bb8d75f167cfaa564de561e409c9d0b2dff72e7d127d92c"},
+    {file = "crewai-0.121.0-py3-none-any.whl", hash = "sha256:fa7991f9e8c188fd5c05cece8c0dae7a4c8487b85d1834a60bb74ad0b21c2ed9"},
+    {file = "crewai-0.121.0.tar.gz", hash = "sha256:5fc6ece92cdf8af760c5bc7c0c26aa70ded497677b8f2b3a857146d7d9d542b5"},
 ]
 
 [package.dependencies]
@@ -1194,27 +1194,29 @@ mem0 = ["mem0ai (>=0.1.94)"]
 openpyxl = ["openpyxl (>=3.1.5)"]
 pandas = ["pandas (>=2.2.3)"]
 pdfplumber = ["pdfplumber (>=0.11.4)"]
-tools = ["crewai-tools (>=0.44.0,<0.45.0)"]
+tools = ["crewai-tools (>=0.45.0,<0.46.0)"]
 
 [[package]]
 name = "crewai-tools"
-version = "0.44.0"
+version = "0.45.0"
 description = "Set of tools for the crewAI framework"
 optional = false
 python-versions = "<=3.13,>=3.10"
 groups = ["main"]
 files = [
-    {file = "crewai_tools-0.44.0-py3-none-any.whl", hash = "sha256:119e2365fe66ee16e18a5e8e222994b19f76bafcc8c1bb87f61609c1e39b2463"},
-    {file = "crewai_tools-0.44.0.tar.gz", hash = "sha256:44e0c26079396503a326efdd9ff34bf369d410cbf95c362cc523db65b18f3c3a"},
+    {file = "crewai_tools-0.45.0-py3-none-any.whl", hash = "sha256:9dd34e4792c075ee7a72134aedaab268e78d0e350114fd7fe2426e691c5f52a3"},
+    {file = "crewai_tools-0.45.0.tar.gz", hash = "sha256:1b2e4eff3f928ce5fac308d6e648719a0e4718a1228ae98980aa0d74fc16bfc7"},
 ]
 
 [package.dependencies]
 chromadb = ">=0.4.22"
 click = ">=8.1.8"
-crewai = ">=0.118.0"
+crewai = ">=0.119.0"
 docker = ">=7.1.0"
 embedchain = ">=0.1.114"
 lancedb = ">=0.5.4"
+mcp = {version = ">=1.6.0", optional = true, markers = "extra == \"mcp\""}
+mcpadapt = {version = ">=0.1.3", optional = true, markers = "extra == \"mcp\""}
 openai = ">=1.12.0"
 pydantic = ">=2.6.1"
 pyright = ">=1.1.350"
@@ -1243,6 +1245,8 @@ serpapi = ["serpapi (>=0.1.5)"]
 snowflake = ["cryptography (>=43.0.3)", "snowflake-connector-python (>=3.12.4)", "snowflake-sqlalchemy (>=1.7.3)"]
 spider-client = ["spider-client (>=0.1.25)"]
 sqlalchemy = ["sqlalchemy (>=2.0.35)"]
+stagehand = ["stagehand-py (>=0.3.6)"]
+tavily-python = ["tavily-python (>=0.5.4)"]
 weaviate-client = ["weaviate-client (>=4.10.2)"]
 xml = ["unstructured[all-docs,local-inference] (>=0.17.2)"]
 
@@ -3453,6 +3457,60 @@ files = [
 
 [package.dependencies]
 traitlets = "*"
+
+[[package]]
+name = "mcp"
+version = "1.9.1"
+description = "Model Context Protocol SDK"
+optional = false
+python-versions = ">=3.10"
+groups = ["main"]
+files = [
+    {file = "mcp-1.9.1-py3-none-any.whl", hash = "sha256:2900ded8ffafc3c8a7bfcfe8bc5204037e988e753ec398f371663e6a06ecd9a9"},
+    {file = "mcp-1.9.1.tar.gz", hash = "sha256:19879cd6dde3d763297617242888c2f695a95dfa854386a6a68676a646ce75e4"},
+]
+
+[package.dependencies]
+anyio = ">=4.5"
+httpx = ">=0.27"
+httpx-sse = ">=0.4"
+pydantic = ">=2.7.2,<3.0.0"
+pydantic-settings = ">=2.5.2"
+python-multipart = ">=0.0.9"
+sse-starlette = ">=1.6.1"
+starlette = ">=0.27"
+uvicorn = {version = ">=0.23.1", markers = "sys_platform != \"emscripten\""}
+
+[package.extras]
+cli = ["python-dotenv (>=1.0.0)", "typer (>=0.12.4)"]
+rich = ["rich (>=13.9.4)"]
+ws = ["websockets (>=15.0.1)"]
+
+[[package]]
+name = "mcpadapt"
+version = "0.1.9"
+description = "Adapt MCP servers to many agentic framework."
+optional = false
+python-versions = ">=3.10"
+groups = ["main"]
+files = [
+    {file = "mcpadapt-0.1.9-py3-none-any.whl", hash = "sha256:9f2a6ad1155efdf1a43c11e8449ae9258295c4e140c3c6ff672983a8ac8bde33"},
+    {file = "mcpadapt-0.1.9.tar.gz", hash = "sha256:03e601c4c083f3f4eb178e6a6bcd157bcb45e25c140ea0895567bab346b67645"},
+]
+
+[package.dependencies]
+jsonref = ">=1.1.0"
+mcp = ">=1.9.0"
+pydantic = ">=2.10.6"
+python-dotenv = ">=1.0.1"
+
+[package.extras]
+crewai = ["crewai (>=0.108.0)"]
+google-genai = ["google-genai (>=1.2.0)"]
+langchain = ["langchain (>=0.3.14)", "langchain-anthropic (>=0.3.1)", "langgraph (>=0.2.62)"]
+llamaindex = ["llama-index (>=0.12.14)"]
+smolagents = ["smolagents (>=1.2.2)"]
+test = ["crewai (>=0.108.0)", "google-genai (>=1.2.0)", "langchain (>=0.3.14)", "langchain-anthropic (>=0.3.1)", "langgraph (>=0.2.62)", "pytest (>=8.3.4)", "pytest-asyncio (>=0.25.2)", "smolagents (>=1.2.2)"]
 
 [[package]]
 name = "mdurl"
@@ -5676,6 +5734,18 @@ files = [
 cli = ["click (>=5.0)"]
 
 [[package]]
+name = "python-multipart"
+version = "0.0.20"
+description = "A streaming multipart parser for Python"
+optional = false
+python-versions = ">=3.8"
+groups = ["main"]
+files = [
+    {file = "python_multipart-0.0.20-py3-none-any.whl", hash = "sha256:8a62d3a8335e06589fe01f2a3e178cdcc632f3fbe0d492ad9ee0ec35aab1f104"},
+    {file = "python_multipart-0.0.20.tar.gz", hash = "sha256:8dd0cab45b8e23064ae09147625994d090fa46f5b0d1e13af944c331a7fa9d13"},
+]
+
+[[package]]
 name = "pytube"
 version = "15.0.0"
 description = "Python 3 library for downloading YouTube Videos."
@@ -6841,6 +6911,26 @@ pymysql = ["pymysql"]
 sqlcipher = ["sqlcipher3_binary"]
 
 [[package]]
+name = "sse-starlette"
+version = "2.3.5"
+description = "SSE plugin for Starlette"
+optional = false
+python-versions = ">=3.9"
+groups = ["main"]
+files = [
+    {file = "sse_starlette-2.3.5-py3-none-any.whl", hash = "sha256:251708539a335570f10eaaa21d1848a10c42ee6dc3a9cf37ef42266cdb1c52a8"},
+    {file = "sse_starlette-2.3.5.tar.gz", hash = "sha256:228357b6e42dcc73a427990e2b4a03c023e2495ecee82e14f07ba15077e334b2"},
+]
+
+[package.dependencies]
+anyio = ">=4.7.0"
+starlette = ">=0.41.3"
+
+[package.extras]
+examples = ["fastapi"]
+uvicorn = ["uvicorn (>=0.34.0)"]
+
+[[package]]
 name = "stack-data"
 version = "0.6.3"
 description = "Extract data from python stack frames and tracebacks for informative displays"
@@ -7807,17 +7897,18 @@ files = [
 
 [[package]]
 name = "weave"
-version = "0.51.46"
+version = "0.51.48"
 description = "A toolkit for building composable interactive data driven applications."
 optional = false
 python-versions = ">=3.9"
 groups = ["main"]
 files = [
-    {file = "weave-0.51.46-py3-none-any.whl", hash = "sha256:a2168e5b241af1b46309309c993af498ec87b6021b566271c2d8ac7b89b9bb6a"},
-    {file = "weave-0.51.46.tar.gz", hash = "sha256:014b25c1aa1a3d402aebad6bd173c2eab0be9ab526903494734e4566bf064dde"},
+    {file = "weave-0.51.48-py3-none-any.whl", hash = "sha256:edfde3c523d91000033ce8e4a3dbe84d9b71df7abf6a72fbd3765f84fe00900d"},
+    {file = "weave-0.51.48.tar.gz", hash = "sha256:3c689ea41e1fbd9e40306f33c1e43f8e88adbe60ee092910f0b39dda44125bd4"},
 ]
 
 [package.dependencies]
+click = "*"
 diskcache = "5.6.3"
 emoji = ">=2.12.1"
 gql = {version = "*", extras = ["aiohttp", "requests"]}
@@ -7859,6 +7950,7 @@ openai-agents = ["openai-agents (>=0.0.4)"]
 pandas-test = ["pandas (>=2.2.3)"]
 presidio = ["presidio-analyzer (==2.2.357)", "presidio-anonymizer (==2.2.357)"]
 scorers = ["levenshtein (>=0.26.0)", "litellm (>=1.58)", "pip (>=20.0)", "presidio-analyzer (>=2.2.0)", "presidio-anonymizer (>=2.2.0)", "scikit-learn (>=1.5.2)", "sentence-transformers (>=3.3.1)", "sentencepiece (>=0.2.0)", "torch (>=2.4.1)", "transformers (>=4.51.1)"]
+smolagents = ["huggingface-hub (>=0.28.1)", "litellm (>=1.58)", "openai (>=1.0.0)", "smolagents (>=1.8.1)", "sqlalchemy (>=2.0.38)"]
 test = ["azure-storage-blob (>=12.24.0)", "boto3 (>=1.34.0)", "clickhouse-connect (==0.7.0)", "ddtrace (>=2.7.0)", "fastapi (>=0.110.0)", "filelock", "flask", "google-cloud-storage (>=2.7.0)", "httpx", "litellm (>=1.36.1)", "moto[s3] (>=5.0.0)", "moviepy (<=1.0.3)", "nox", "openinference-semantic-conventions (>=0.1.17)", "opentelemetry-proto (>=1.12.0)", "opentelemetry-semantic-conventions-ai (>=0.4.3)", "pillow", "pytest (>=8.2.0)", "pytest-asyncio (>=0.23.6)", "pytest-cov (>=5.0.0)", "pytest-recording (>=0.13.2)", "pytest-rerunfailures (>=12.0)", "pytest-rerunfailures (>=14.0)", "pytest-xdist (>=3.1.0)", "sqlparse (==0.5.0)", "uvicorn (>=0.27.0)", "vcrpy (>=7.0.0)"]
 trace-server = ["azure-storage-blob (>=12.24.0)", "boto3 (>=1.34.0)", "ddtrace (>=2.7.0)", "google-cloud-storage (>=2.7.0)", "litellm (>=1.36.1)", "openinference-semantic-conventions (>=0.1.17)", "opentelemetry-proto (>=1.12.0)", "opentelemetry-semantic-conventions-ai (>=0.4.3)"]
 trace-server-tests = ["moto[s3] (>=5.0.0)"]
@@ -8376,4 +8468,4 @@ cffi = ["cffi (>=1.11)"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.10,<3.12"
-content-hash = "d3c96b8e093145dcc4612317d1bd7bdd81388032dd09053daadb83f6a6339276"
+content-hash = "69fd530e7d8b88b9f5152b89ab4abcff027d0b694bfd58599c37db5df793b261"

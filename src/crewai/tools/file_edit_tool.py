@@ -13,7 +13,7 @@ import difflib
 from typing import List, Optional, Dict, Any, Type, Union, Literal
 from pathlib import Path
 
-from pydantic import BaseModel, Field, PrivateAttr
+from pydantic import BaseModel, Field, PrivateAttr, field_validator
 from crewai.tools import BaseTool
 
 import massedit  # Library for mass editing text files
@@ -26,10 +26,20 @@ class FileCreateRequest(BaseModel):
     
     Attributes:
         file_path (str): Path to the file to create, relative to base directory.
-        content (str): Content to write to the new file.
+                       Use forward slashes ('/') for cross-platform compatibility.
+        content (str): Content to write to the new file. For multi-line content,
+                     use '\n' for line breaks and ensure proper escaping in JSON.
     """
-    file_path: str = Field(..., description="Path to the file to create, relative to base directory")
-    content: str = Field(..., description="Content to write to the new file")
+    file_path: str = Field(
+        ...,
+        description=("Path to the file to create, relative to base directory. "
+                   "Use forward slashes ('/') for cross-platform compatibility.")
+    )
+    content: str = Field(
+        ...,
+        description=("Content to write to the new file. For multi-line content, "
+                   "use '\\n' for line breaks. Ensure proper escaping in JSON.")
+    )
 
 
 class LineOperation(BaseModel):
@@ -40,10 +50,33 @@ class LineOperation(BaseModel):
         line_number (int): The line number to operate on (1-based indexing).
         operation (str): The type of operation ('add', 'replace', or 'delete').
         content (Optional[str]): The content for 'add' or 'replace' operations.
+            - Required for 'add' and 'replace' operations.
+            - Must not be empty for 'add' operations.
+            - Must be None for 'delete' operations.
     """
     line_number: int = Field(..., description="Line number to modify (1-based indexing)")
     operation: Literal["add", "replace", "delete"] = Field(..., description="Operation type: 'add', 'replace', or 'delete'")
-    content: Optional[str] = Field(None, description="Content for add or replace operations")
+    content: Optional[str] = Field(
+        None,
+        description=(
+            "Content for 'add' or 'replace' operations. "
+            "Required and must not be empty for 'add' operations. "
+            "Required for 'replace' operations. "
+            "Must be None for 'delete' operations."
+        )
+    )
+    
+    @field_validator('content')
+    def validate_content_based_on_operation(cls, v, values):
+        operation = values.get('operation')
+        if operation in ['add', 'replace']:
+            if v is None:
+                raise ValueError(f"Content is required for '{operation}' operation")
+            if operation == 'add' and not v.strip():
+                raise ValueError("Content cannot be empty for 'add' operation")
+        elif operation == 'delete' and v is not None:
+            raise ValueError("Content must be None for 'delete' operation")
+        return v
 
 
 class FileEditRequest(BaseModel):
@@ -89,16 +122,33 @@ class FileCreateTool(BaseTool):
     description: str = (
         "Creates a new file with your specified content. If the file already exists, this tool will not work. "
         "\n\nHOW TO USE THIS TOOL:\n"
-        "1. Choose a path and name for your new file (file_path)\n"
-        "2. Write the text content you want in the file (content)\n"
-        "\nIMPORTANT: For file paths, always use forward slashes ('/') not backslashes, like 'folder/my_file.txt'\n"
-        "\n\nEXAMPLES:\n"
+        "- Provide a single JSON object (dictionary) with two keys: 'file_path' and 'content'.\n"
+        "- DO NOT provide a list/array or combine multiple operations in one call—this will result in an error.\n"
+        "- Only one file creation operation is allowed per call.\n"
+        "- 'file_path' should be a string using forward slashes ('/'), e.g., 'folder/my_file.txt'.\n"
+        "- 'content' should be a string. For multi-line content, use '\\n' for line breaks.\n"
+        "- When using JSON, escape special characters properly:\n"
+        "  - Double quotes: \\\"\n"
+        "  - Newlines: \\n\n"
+        "  - Backslashes: \\\\\n"
+        "- IMPORTANT: Do NOT add backslashes at the end of each line in your content. This will cause issues with YAML files.\n\n"
+        "\nEXAMPLES:\n"
         "1. Create a simple text file:\n"
         "   {\"file_path\": \"notes/reminder.txt\", \"content\": \"Remember to call John tomorrow.\"}\n"
-        "\n2. Create a Python script:\n"
-        "   {\"file_path\": \"scripts/hello.py\", \"content\": \"print('Hello world!')\\n# This is a comment\\nprint('Goodbye!')\"}\n"
-        "\n3. Create a multi-line document:\n"
-        "   {\"file_path\": \"docs/instructions.md\", \"content\": \"# Instructions\\n\\n1. Step one\\n2. Step two\\n3. Step three\"}"
+        "2. Create a Python script with multiple lines:\n"
+        "   {\"file_path\": \"scripts/hello.py\", \"content\": \"def hello():\\n    print('Hello, world!')\\n\\nif __name__ == '__main__':\\n    hello()\"}\n"
+        "3. Create a YAML configuration file:\n"
+        "   {\"file_path\": \"config/settings.yaml\", \"content\": \"# YAML example - note NO backslashes at end of lines\\ndatabase:\\n  host: localhost\\n  port: 5432\\n  name: myapp\\n\\nserver:\\n  port: 3000\\n  environment: production\"}\n"
+        "4. Create a JSON file (note escaped quotes):\n"
+        "   {\"file_path\": \"data/config.json\", \"content\": \"{\\\"api_key\\\": \\\"your-api-key\\\", \\\"timeout\\\": 30, \\\"enabled\\\": true}\"}\n"
+        "\nTROUBLESHOOTING:\n"
+        "- If you see 'not a valid key, value dictionary' errors, you are likely passing an array (list) or combining multiple operations.\n"
+        "  INVALID (will fail):\n    [\n      {\"file_path\": \"file1.txt\", \"content\": \"foo\"},\n      {\"file_path\": \"file2.txt\", \"content\": \"bar\"}\n    ]\n"
+        "  VALID (will succeed):\n    {\"file_path\": \"file1.txt\", \"content\": \"foo\"}\n"
+        "  Only a single dictionary/object is allowed per call.\n"
+        "- If you see extra backslashes, ensure you're not double-escaping the content.\n"
+        "- For multi-line content, use '\\n' for line breaks, not actual newlines.\n"
+        "- When in doubt, test your JSON in a validator to ensure proper escaping."
     )
     args_schema: Type[BaseModel] = FileCreateRequest
     _base_dir: str = PrivateAttr()
@@ -180,8 +230,15 @@ class FileEditTool(BaseTool):
         "   - For line-by-line EDITING: provide 'line_operations' (list of operations on specific line numbers)\n"
         "   - For pattern-based CHANGES: provide 'expressions' (list of text patterns to find and replace)\n"
         "   - For COMPLETE replacement: provide 'content' (new text that will replace everything)\n"
-        "\nIMPORTANT: For file paths, always use forward slashes ('/') not backslashes, like 'folder/my_file.txt'\n"
-        "\n\nEXAMPLES FOR DIRECT LINE EDITING (EASIEST METHOD):\n"
+        "\nIMPORTANT:\n"
+        "- For file paths, always use forward slashes ('/') not backslashes, like 'folder/my_file.txt'\n"
+        "- For multi-line content, use '\\n' for line breaks\n"
+        "- When using JSON, ensure proper escaping of special characters:\n"
+        "  - Double quotes: \\\"\n"
+        "  - Newlines: \\n\n"
+        "  - Backslashes: \\\\\n"
+        "- IMPORTANT: Do NOT add backslashes at the end of each line in your content. This will cause issues with YAML files.\n"
+        "\nEXAMPLES FOR DIRECT LINE EDITING (EASIEST METHOD):\n"
         "1. ADD a new line AFTER line 3 (note: content cannot be empty):\n"
         "   {\"file_path\": \"documents/notes.txt\", \"line_operations\": [{\"line_number\": 3, \"operation\": \"add\", \"content\": \"This is a new line\"}]}\n"
         "   To add a blank line, use a space as content: {\"content\": \" \"}\n\n"
@@ -189,23 +246,25 @@ class FileEditTool(BaseTool):
         "   {\"file_path\": \"documents/notes.txt\", \"line_operations\": [{\"line_number\": 5, \"operation\": \"replace\", \"content\": \"This is the replacement line\"}]}\n\n"
         "3. DELETE line 7 (only line_number and operation needed):\n"
         "   {\"file_path\": \"documents/notes.txt\", \"line_operations\": [{\"line_number\": 7, \"operation\": \"delete\"}]}\n\n"
-        "4. MULTIPLE operations (add line 2, replace line 5, delete line 8):\n"
-        "   {\"file_path\": \"documents/notes.txt\", \"line_operations\": [\n"
-        "     {\"line_number\": 2, \"operation\": \"add\", \"content\": \"New second line\"},\n"
-        "     {\"line_number\": 5, \"operation\": \"replace\", \"content\": \"Updated fifth line\"},\n"
-        "     {\"line_number\": 8, \"operation\": \"delete\"}\n"
-        "   ]}"
-        "\n\nEXAMPLES FOR PATTERN-BASED CHANGES:\n"
-        "\n1. REPLACE a specific word everywhere in the file:\n"
-        "   {\"file_path\": \"documents/letter.txt\", \"expressions\": [\"re.sub('old', 'new', line)\"]}"
-        "\n2. REPLACE an entire line containing specific text:\n"
-        "   {\"file_path\": \"documents/instructions.md\", \"expressions\": [\"'New content' if 'target text' in line else line\"]}"
-        "\n3. INSERT TEXT after specific text (for more complex operations):\n"
-        "   {\"file_path\": \"documents/notes.txt\", \"expressions\": [\"line.replace('target', 'target NEW TEXT')\"]}"
-        "\n\nEXAMPLES FOR COMPLETE REPLACEMENT:\n"
-        "\n1. Replace the entire file:\n"
-        "   {\"file_path\": \"documents/notes.txt\", \"content\": \"This is all new content.\\nEverything else is gone.\"}"
-    )
+        "4. MULTI-LINE content example (note the \\n for newlines):\n"
+        "   {\"file_path\": \"documents/notes.txt\", \"content\": \"First line\\nSecond line\\nThird line\"}\n\n"
+        "EXAMPLES FOR PATTERN-BASED CHANGES:\n"
+        "1. REPLACE a specific word everywhere in the file:\n"
+        "   {\"file_path\": \"documents/letter.txt\", \"expressions\": [\"re.sub('old', 'new', line)\"]}\n"
+        "2. REPLACE an entire line containing specific text:\n"
+        "   {\"file_path\": \"documents/instructions.md\", \"expressions\": [\"'New content' if 'target text' in line else line\"]}\n"
+        "3. INSERT TEXT after specific text (for more complex operations):\n"
+        "   {\"file_path\": \"documents/notes.txt\", \"expressions\": [\"line.replace('target', 'target NEW TEXT')\"]}\n"
+        "\nEXAMPLES FOR COMPLETE REPLACEMENT:\n"
+        "1. Replace the entire file with multi-line content:\n"
+        "   {\"file_path\": \"documents/notes.txt\", \"content\": \"First line\\nSecond line\\nThird line\"}\n"
+        "2. Replace with YAML content (note escaped quotes):\n"
+        "   {\"file_path\": \"config.yaml\", \"content\": \"# YAML example - note NO backslashes at end of lines\\nkey: value\\nitems:\\n  - item1\\n  - item2\"}\n"
+        "\nTROUBLESHOOTING:\n"
+        "- If you see extra backslashes, ensure you're not double-escaping the content\n"
+        "- For multi-line YAML/JSON, ensure proper indentation and escaping\n"
+        "- When in doubt, use the 'content' method for complete control over the file content"
+        )
     args_schema: Type[BaseModel] = FileEditRequest
     _base_dir: str = PrivateAttr()
     
