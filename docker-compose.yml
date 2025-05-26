@@ -29,18 +29,5 @@ services:
       PERSISTENCE_DATA_PATH: '/var/lib/weaviate'
       CLUSTER_HOSTNAME: 'node1'
     
-  mcp-proxy:
-    build: 
-      context: .
-      dockerfile: dockerfile.mcp_proxy_with_docker
-    container_name: mcp-proxy
-    ports:
-      - "9000:9000"            # expose public API
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-      - ./config/mcp_server/config.json:/config/config.json:ro # Config file at a relative path with ./
-    restart: on-failure:0
-
-
 volumes:  
   weaviate_data:
