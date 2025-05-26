@@ -8,6 +8,12 @@ from pprint import pprint
 
 
 if __name__ == "__main__":
+    result = get("rag")._run(
+        query="what is the role of the kubelet in kubernetes?",
+        collection="kubernetes_code"
+    )
+    pprint(result)
+
     # result = validate_yaml_file("temp/production_nginx_mysql.yaml")
     # pprint(result)
 
@@ -42,11 +48,11 @@ if __name__ == "__main__":
     # result = read_tool.run(file_path="nginx-prod.yaml")
     # pprint(result)
 
-    validation_tool = get("config_validator")
-    result = validation_tool._run(
-        file_path="nginx-prod.yaml",
-        file_type="kubernetes",
-        enable_security_scan=True,
-        skip_checks=[]
-    )
-    pprint(result)
+    # validation_tool = get("config_validator")
+    # result = validation_tool._run(
+    #     file_path="nginx-prod.yaml",
+    #     file_type="kubernetes",
+    #     enable_security_scan=True,
+    #     skip_checks=[]
+    # )
+    # pprint(result)

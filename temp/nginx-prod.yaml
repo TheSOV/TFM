@@ -1,0 +1,111 @@
+# Production-level Kubernetes Deployment and Service for Nginx
+#
+# This manifest deploys a highly available, secure, and performant Nginx server in production.
+# It exposes Nginx externally via a LoadBalancer on port 5010.
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-prod
+  namespace: production
+  labels:
+    app: nginx
+spec:
+  replicas: 3  # High availability: minimum 3 replicas
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      automountServiceAccountToken: false  # Avoid mounting SA token unnecessarily
+      securityContext:
+        runAsUser: 2000        # Run as high UID user to avoid host conflict
+        runAsGroup: 2000
+        fsGroup: 2000          # Group for volume access
+        runAsNonRoot: true     # Enforce running as non-root
+      containers:
+      - name: nginx
+        image: nginx@sha256:9f00a61db0c6cc1505e7e89e958bc201d9f5bc829054fca1a0f34435b3b655ea    # Use image digest for immutability
+        imagePullPolicy: Always    # Ensure image is pulled on every deploy
+        ports:
+        - containerPort: 80
+        resources:
+          requests:
+            cpu: "100m"       # Minimum CPU guaranteed
+            memory: "256Mi"   # Minimum memory guaranteed
+          limits:
+            cpu: "500m"       # Maximum CPU allowed
+            memory: "512Mi"   # Maximum memory allowed
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL
+          readOnlyRootFilesystem: true
+          seccompProfile:
+            type: RuntimeDefault
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 10    # Wait 10s before starting readiness checks
+          periodSeconds: 10          # Check every 10 seconds
+          timeoutSeconds: 5          # Timeout after 5 seconds
+          successThreshold: 1        # Consider ready after 1 successful check
+          failureThreshold: 3        # Fail after 3 unsuccessful checks
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 30    # Wait 30s before first liveness check
+          periodSeconds: 20          # Check every 20 seconds
+          timeoutSeconds: 5          # Timeout after 5 seconds
+          failureThreshold: 3        # Restart after 3 failures
+
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: nginx-allow-only-http
+  namespace: production
+spec:
+  podSelector:
+    matchLabels:
+      app: nginx
+  policyTypes:
+  - Ingress
+  ingress:
+  - ports:
+    - protocol: TCP
+      port: 80
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-prod-lb
+  namespace: production
+  labels:
+    app: nginx
+  annotations:
+    # Example cloud provider annotations:
+    # AWS: 
+    # service.beta.kubernetes.io/aws-load-balancer-type: "nlb"  # Use Network Load Balancer
+    # service.beta.kubernetes.io/aws-load-balancer-internal: "true"  # For internal LB
+    # GCP:
+    # cloud.google.com/load-balancer-type: "Internal"
+    # Azure:
+    # service.beta.kubernetes.io/azure-load-balancer-internal: "true"
+spec:
+  type: LoadBalancer
+  selector:
+    app: nginx
+  ports:
+  - port: 5010          # External port exposed
+    targetPort: 80      # Forward to container port 80
+    protocol: TCP
+    name: http

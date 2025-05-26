@@ -7,8 +7,9 @@ from crewai.agents.agent_builder.base_agent import BaseAgent
 
 import src.services_registry.services as services
 
+
 @CrewBase
-class DevopsCrew:
+class AgenticRagCrew:
     """Description of your crew"""
 
     agents: List[BaseAgent]
@@ -34,32 +35,19 @@ class DevopsCrew:
         return output
 
     @agent
-    def devops_engineer(self) -> Agent:
-        return Agent(
-            config=self.agents_config['devops_engineer'], # type: ignore[index]
-            verbose=True,
-            tools=[
-                services.get("file_create"),
-                services.get("file_edit"),
-                services.get("file_read"),
-                services.get("config_validator"),
-            ]
-        )
-
-    @agent
     def researcher(self) -> Agent:
         return Agent(
             config=self.agents_config['researcher'], # type: ignore[index]
             verbose=True,
             tools=[
-                services.get("rag"),
+                services.get("rag")
             ]
         )
 
     @task
-    def create_k8s_config(self) -> Task:
+    def answer_question(self) -> Task:
         return Task(
-            config=self.tasks_config['create_k8s_config'] # type: ignore[index]
+            config=self.tasks_config['answer_question'] # type: ignore[index]
         )
 
     @crew

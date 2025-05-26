@@ -14,6 +14,10 @@
           "ghcr.io/mark3labs/mcp-filesystem-server:latest",
           "/projects"
         ]
+      },
+      "devops_tools": {
+        "type": "sse",
+        "url": "http://127.0.0.1:8000/mcp"
       }
     }
   }
