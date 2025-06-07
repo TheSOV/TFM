@@ -1,0 +1,92 @@
+# Kubernetes configuration file for a production-ready nginx deployment in a Kind cluster
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: nginx-namespace
+  labels:
+    name: nginx-namespace
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-deployment
+  namespace: nginx-namespace
+  labels:
+    app: nginx
+spec:
+  replicas: 3  # High availability: 3 replicas
+  selector:
+    matchLabels:
+      app: nginx
+  strategy:
+    type: RollingUpdate  # Rolling update strategy for zero downtime deployments
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      securityContext:
+        runAsUser: 101  # Run nginx as non-root user with UID 101
+        fsGroup: 101
+        seccompProfile:
+          type: RuntimeDefault  # Use runtime/default seccomp profile for security
+      automountServiceAccountToken: false  # Reduce unnecessary token exposure
+      containers:
+      - name: nginx
+        image: nginx@sha256:fb39280b7b9eba5727c884a3c7810002e69e8f961cc373b89c92f14961d903a0  # Using image digest for immutability
+        imagePullPolicy: Always  # Force always pull latest image to avoid outdated cached images
+        ports:
+        - containerPort: 80
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          failureThreshold: 3
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 15
+          periodSeconds: 20
+          failureThreshold: 3
+        securityContext:
+          allowPrivilegeEscalation: false  # Prevent privilege escalation
+          runAsNonRoot: true  # Ensure container is non-root
+          capabilities:
+            drop:
+              - NET_RAW  # Drop NET_RAW capability for enhanced security
+          readOnlyRootFilesystem: true  # Make filesystem read-only for container
+        resources:
+          requests:
+            cpu: "100m"  # CPU request to ensure resource allocation
+            memory: "128Mi"  # Memory request
+          limits:
+            cpu: "250m"  # CPU limit
+            memory: "256Mi"  # Memory limit
+      restartPolicy: Always
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-service
+  namespace: nginx-namespace
+  labels:
+    app: nginx
+spec:
+  selector:
+    app: nginx
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 80
+  type: ClusterIP  # Internal cluster access only; LoadBalancer can be used for external
+
+# End of nginx production deployment configuration

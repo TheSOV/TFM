@@ -8,16 +8,16 @@ import yaml
 import kubernetes_validate
 import traceback
 from pathlib import Path
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any
+import os   
 
 
-def validate_kubernetes_manifest(file_path: Path, k8s_version: str = "1.25.0") -> Dict[str, Any]:
+def validate_kubernetes_manifest(file_path: Path) -> Dict[str, Any]:
     """
     Validate a Kubernetes manifest file.
     
     Args:
         file_path: Path to the Kubernetes manifest file
-        k8s_version: Kubernetes version to validate against (default: 1.25.0)
         
     Returns:
         Dict containing validation results with structure:
@@ -57,6 +57,7 @@ def validate_kubernetes_manifest(file_path: Path, k8s_version: str = "1.25.0") -
         # Process each manifest in the file
         for manifest in manifests:
             try:
+                k8s_version = os.getenv("K8S_VERSION")
                 kubernetes_validate.validate(manifest, k8s_version, strict=True)
                 
             except kubernetes_validate.ValidationError as e:

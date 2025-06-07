@@ -1,4 +1,4 @@
-from typing import Callable, Any, Dict, Tuple
+from typing import Callable, Any, Dict, Tuple, Optional
 import os
 
 from src.embeddings.late_chunking import LateChunkingHelper
@@ -7,8 +7,13 @@ from src.ingest.ingest_helper import IngestHelper
 
 from src.crewai.tools.file_edit_tool import FileCreateTool, FileEditTool, FileReadTool  
 from src.crewai.tools.config_validator import ConfigValidatorTool
-
+from src.crewai.tools.kubectl_tool import KubectlTool
 from src.crewai.tools.rag_tool import RagTool
+from src.crewai.tools.docker_registry_tool import DockerManifestTool, DockerImageDetailsTool, DockerPullableDigestTool
+from src.crewai.tools.utils.docker_registry_client import DockerRegistryClient, DockerRegistryAuth
+
+from crewai_tools import DirectoryReadTool
+from crewai_tools import SeleniumScrapingTool
 
 
 _registry: Dict[str, Tuple[Callable[[], Any], bool]] = {}
@@ -46,6 +51,27 @@ def init_services():
         late_chunking_helper=get("late_chunking_helper")
     ), singleton=False)
 
+    register("selenium_scraper", 
+    lambda: SeleniumScrapingTool(
+        website_url="https://hub.docker.com/"), singleton=False)
+
+    # Register kubectl tool with configuration from environment
+    def get_namespace_set(env_var: str) -> Optional[set]:
+        value = os.getenv(env_var, "").strip()
+        if not value:
+            return None
+        return set(filter(None, value.split(",")))
+        
+    register("kubectl",
+    lambda: KubectlTool(
+        kubectl_path=os.getenv("KUBECTL_PATH", "/usr/bin/kubectl"),
+        allowed_verbs=set(filter(None, os.getenv("KUBECTL_ALLOWED_VERBS", "").split(","))),
+        safe_namespaces=get_namespace_set("KUBECTL_SAFE_NAMESPACES"),
+        denied_namespaces=get_namespace_set("KUBECTL_DENIED_NAMESPACES") or set(),
+        deny_flags=set(filter(None, os.getenv("KUBECTL_DENY_FLAGS", "").split(","))),
+        base_dir=os.getenv("TEMP_FILES_DIR", "/temp")  # Use same base dir as other file operations
+    ), singleton=False)
+
     register("file_create", 
     lambda: FileCreateTool(
         base_dir=os.getenv("TEMP_FILES_DIR")
@@ -61,9 +87,43 @@ def init_services():
         base_dir=os.getenv("TEMP_FILES_DIR")
     ), singleton=False)
 
+    register("directory_read", 
+    lambda: DirectoryReadTool(
+        directory=os.getenv("TEMP_FILES_DIR")
+    ),     
+    singleton=False)
+
     register("config_validator", 
     lambda: ConfigValidatorTool(
         base_dir=os.getenv("TEMP_FILES_DIR")
+    ), singleton=False)
+
+    # Register Docker Registry tools
+    register("docker_registry_auth",
+    lambda: DockerRegistryAuth(
+        username=os.getenv("DOCKER_REGISTRY_USERNAME"),
+        password=os.getenv("DOCKER_REGISTRY_PASSWORD"),
+        registry=os.getenv("DOCKER_REGISTRY_URL", "registry-1.docker.io")
+    ))
+
+    register("docker_registry_client",
+    lambda: DockerRegistryClient(
+        auth=get("docker_registry_auth")
+    ))
+
+    register("docker_manifest_tool",
+    lambda: DockerManifestTool(
+        registry_client=get("docker_registry_client")
+    ), singleton=False)
+
+    register("docker_image_details_tool",
+    lambda: DockerImageDetailsTool(
+        registry_client=get("docker_registry_client")
+    ), singleton=False)
+    
+    register("docker_pullable_digest_tool",
+    lambda: DockerPullableDigestTool(
+        registry_client=get("docker_registry_client")
     ), singleton=False)
 
 
