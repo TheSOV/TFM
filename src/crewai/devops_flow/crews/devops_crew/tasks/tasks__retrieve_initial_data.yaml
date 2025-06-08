@@ -1,0 +1,31 @@
+research_image_data:
+  description: >
+    The task, is to retrieve all the required information about the images to be used to complete the given task.
+    Ensure to retrieve the latest stable tag to be used, the repository to be used, the digest to get the image details,
+    relevant information about ports, volumes, environment variables and any other relevant information that might result
+    relevant for the task and the pullable digest. 
+
+    The preferred order to retrieve the information is the following:
+    1 - Retrieve docker manifest of the latest stable tag to be used.
+    2 - Retrieve image details using the digest retrieved in step 1, to get relevant information about ports, volumes, environment variables and any other relevant information that might result
+    3 - Retrieve the pullable digest to be used to pull the image.
+    relevant for the task.
+
+
+    <important>
+    - Ensure to select the pullable digest to be used to pull the image, otherwise the image will not be pullable and the
+    task will fail.
+    </important>
+
+    The state contains the available information until the current point, use it to complete the task.
+    
+    <state>
+      {state}
+    </state>
+  expected_output: >
+    A json output, that includes the latest stable tag to be used, the repository to be used, the digest, relevant information  
+    about ports, volumes, environment variables and any other relevant information that might result relevant 
+    for the task.
+  max_retries: 3
+  async_execution: true
+  agent: devops_researcher

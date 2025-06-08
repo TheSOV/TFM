@@ -18,11 +18,11 @@ class DevopsCrewCorrectConfig(BaseCrew):
     # - Agents: https://docs.crewai.com/concepts/agents#yaml-configuration-recommended
     tasks_config = 'tasks/tasks__correct_config.yaml'
 
-    @task
-    def research_k8s_config_errors(self) -> Task:
-        return Task(
-            config=self.tasks_config['research_k8s_config_errors'] # type: ignore[index]
-        )
+    # @task
+    # def research_k8s_config_errors(self) -> Task:
+    #     return Task(
+    #         config=self.tasks_config['research_k8s_config_errors'] # type: ignore[index]
+    #     )
     
     @task
     def correct_k8s_config(self) -> Task:
@@ -38,6 +38,6 @@ class DevopsCrewCorrectConfig(BaseCrew):
             agents=self.agents,  # Automatically collected by the @agent decorator
             tasks=self.tasks,    # Automatically collected by the @task decorator. 
             process=Process.sequential,
-            verbose=True,
+            verbose=False,
             memory=False
         )

@@ -13,6 +13,18 @@ from src.services_registry.services import init_services
 init_services()
 
 from src.crewai.devops_flow.crews.devops_crew.devops_crew__initial_config import DevopsCrewInitialConfig
+from src.crewai.devops_flow.crews.devops_crew.devops_crew__correct_config import DevopsCrewCorrectConfig
+from src.crewai.devops_flow.crews.devops_crew.devops_crew__test_config import DevopsCrewTestConfig
 
-result = DevopsCrewInitialConfig().crew().kickoff(inputs={"task": "create a nginx deployment"})
+# result = DevopsCrewInitialConfig().crew().kickoff(inputs={"task": "create a nginx deployment"})
+# print(result.json_dict)
+
+# result = DevopsCrewCorrectConfig().crew().kickoff(inputs={"task": "create a nginx deployment"})
+# print(result.json_dict)
+
+result = DevopsCrewTestConfig().crew().kickoff(inputs={
+    "namespace": "nginx-namespace", 
+    "file_path": "k8s/nginx-deployment.yaml"
+    }
+)
 print(result.json_dict)

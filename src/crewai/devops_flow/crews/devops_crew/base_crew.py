@@ -47,7 +47,7 @@ class BaseCrew:
                 services.get("file_create"),
                 services.get("file_edit"),
                 services.get("file_read"),
-                services.get("directory_read"),
+                # services.get("directory_read"),
                 services.get("config_validator"),
             ]
         )
@@ -61,7 +61,6 @@ class BaseCrew:
             verbose=True,
             tools=[
                 services.get("rag"),
-                services.get("selenium_scraper"),
                 services.get("docker_manifest_tool"),
                 services.get("docker_image_details_tool"),
                 services.get("docker_pullable_digest_tool")
@@ -78,49 +77,7 @@ class BaseCrew:
             tools=[
                 services.get("kubectl"),
                 services.get("file_read"),
-                services.get("directory_read")
+                services.get("popeye_scan"),
+                # services.get("directory_read")
             ]
         )
-
-    # @task
-    # def research_k8s_config(self) -> Task:
-    #     return Task(
-    #         config=self.tasks_config['research_k8s_config'] # type: ignore[index]
-    #     )
-    
-    # @task
-    # def research_image_data(self) -> Task:
-    #     return Task(
-    #         config=self.tasks_config['research_image_data'] # type: ignore[index]
-    #     )
-
-    # @task
-    # def create_k8s_config(self) -> Task:
-    #     task = Task(
-    #         config=self.tasks_config['create_k8s_config'], # type: ignore[index]
-    #         output_json=outputs.CreateK8sConfigOutput,
-    #         guardrail=guardrails.validate_create_k8s_config
-    #     )
-    #     return task
-
-    # @task
-    # def research_k8s_testing(self) -> Task:
-    #     return Task(
-    #         config=self.tasks_config['research_k8s_testing'] # type: ignore[index]
-    #     )
-
-    # @task
-    # def test_k8_configuration(self) -> Task:
-    #     return Task(
-    #         config=self.tasks_config['test_k8_configuration'] # type: ignore[index]
-    #     )
-
-    # @crew
-    # def crew(self) -> Crew:
-    #     return Crew(
-    #         agents=self.agents,  # Automatically collected by the @agent decorator
-    #         tasks=self.tasks,    # Automatically collected by the @task decorator. 
-    #         process=Process.sequential,
-    #         verbose=True,
-    #         memory=False
-    #     )

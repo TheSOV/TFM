@@ -1,75 +1,116 @@
-research_k8s_testing:
+test_k8_configuration_kubectl:
   description: >
-    Your goal is to research all the required information required for the devops_tester be able to test a 
-    k8s config file, and verify that it works as expected.
+    You will verify that the k8s configuration applied in the cluster is working as expected.
     
     To complete the task, you should:
     
     <steps>
-      1 - Analyze the goal of the task and the requirements.
-      2 - Use all the tools available to research a get a report with all the required information about the task
-      that the devops_tester needs to test a k8s config file.
-      3 - Return a detailed report with possible options, commands, metrics and logs to verify if the k8s config file
+      1 - Using get state, logs, and description of the elements in the cluster, verify that the configuration 
       is working as expected.
-    </steps>
-    
-    a proper report should include:
-    <report_requirements>
-    - A summary of the task, with technical details and information.
-    - Detailed information about the the tests to be made, previous requirements to test the k8s config file and any other relevant information.
-    - A comprehensive description, with technical details and information, and code examples when apply.
-    </report_requirements>
-
-    <important>
-    - To use the tools available, use the proper way to use them, with Action and Action Input.
-    </important>
-  expected_output: >
-    A summary of the task, in markdown format, that includes detailed information about about the tests to be made,
-    previous requirements to test the k8s config file and any other relevant information.
-  markdown: true
-  max_retries: 3
-  agent: devops_researcher
-
-test_k8_configuration:
-  description: >
-    You will test the devops configuration file created by the devops_engineer agent and ensure it is working as expected.
-    
-    To complete the task, you should:
-    
-    <steps>
-      1 - Read and understand the configuration file.
-      2 - If required, request more information to the devops_researcher agent about the configuration 
+      2 - If required, read the configuration file and the k8s cluster to understand the configuration.
+      3 - If required, request more information to the devops_researcher agent about the configuration 
       file and the required commands to test it.
-      3 - Clear the kubernetes cluster.
-      4 - Apply the configuration file.
-      5 - Verify the configuration is correctly working.
-      6 - In case of any issue, analyze the issue and search for information about the issue and reason about it,
-      and request the devops_engineer agent to fix the issue and go back to step 1. If no issue is found, 
-      continue to step 7.
-      7 - Clear the kubernetes cluster.
-      8 - Return a summary of the task, in markdown format, with the path of the configuration file tested,
-      a little summary of the actions taken during the task, a list of the tests implemented, and 
-      the results of the tests.
+      4 - Return a summary of the task, in markdown format, with all the issues found, with all the 
+      details you can get.
     </steps>
 
     To complete the task, you should:
     
     <task_completion_requirements>
-      Have a valid and tested k8s config file.
+      Have a detailed analysis of the k8s configuration tested.
     </task_completion_requirements>      
     
     <important>
     - To use the tools available, use the proper way to use them, with Action and Action Input.
     </important>
+
+    The state contains the available information until the current point, use it to complete the task.
+    
+    <state>
+      {state}
+    </state>
   expected_output: >
-    A summary of the task, in markdown format, with the paths of the configuration files tested,
-    a little summary of the actions taken during the task, a list of the tests implemented, and 
-    the results of the tests. 
-  guardrail: Ensure that the answers contents the paths of the configuration files tested,
-    a little summary of the actions taken during the task, a list of the tests implemented, and 
-    the results of the tests.
+    A summary of the task, in markdown format, specifying that this is the kubectl scan report, with all the issues found, with all the details 
+    you can get. 
+  async_execution: true
+  markdown: true
   max_retries: 3
-  context: 
-    - create_k8s_config
-    - research_k8s_testing
   agent: devops_tester
+
+test_k8_configuration_popeye:
+  description: >
+    You will verify that the k8s configuration applied in the cluster is working as expected.
+    
+    To complete the task, you should:
+    
+    <steps>
+      1 - Using popeye scan, verify that the configuration is working as expected.
+      2 - If required, read the configuration file and the k8s cluster to understand the configuration.
+      3 - If required, request more information to the devops_researcher agent about the configuration 
+      file and the required commands to test it.
+      4 - Return a summary of the task, in markdown format, with all the issues found, with all the 
+      details you can get.
+    </steps>
+
+    To complete the task, you should:
+    
+    <task_completion_requirements>
+      Have a detailed analysis of the k8s configuration tested.
+    </task_completion_requirements>      
+    
+    <important>
+    - To use the tools available, use the proper way to use them, with Action and Action Input.
+    </important>
+
+    The state contains the available information until the current point, use it to complete the task.
+    
+    <state>
+      {state}
+    </state>
+  expected_output: >
+    A summary of the task, specifying that this is the popeye scan report, in markdown format, with all the issues found, with all the details 
+    you can get. 
+  async_execution: true
+  max_retries: 3
+  markdown: true
+  agent: devops_tester
+
+test_k8_configuration_report:
+  description: >
+    Using the report generated by the popeye scan and the kubectl command tool that you will receive as context, create a comprehensive report
+    of the configuration tested, with all the issues found and the details you can get, ordered by severity.  
+
+    The severity levels are:
+    - low
+    - medium
+    - high
+    - very_high
+
+    The low severity issues are not critical and can be ignored. With this issues, the cluster functionality is not affected.
+    The medium severity issues are critical and should be fixed. With this issues, the cluster functionality is not affected.
+    The high severity issues are critical, representing security and/or stability issues and should be fixed. With this issues, the cluster functionality is not affected. 
+    The very_high severity issues are critical ones that prevents the cluster from working as expected.
+
+    Also, include in the report if, regardless of the issues found, the cluster is working as expected or not.     
+
+    You can use any of the available tools to get deeper information about the issues found if the information 
+    is not enough.   
+
+    <important>
+    - To use the tools available, use the proper way to use them, with Action and Action Input.
+    </important>
+
+    The state contains the available information until the current point, use it to complete the task.
+    
+    <state>
+      {state}
+    </state>
+  expected_output: >
+    A comprehensive report of the configuration tested, with all the issues found, with all the details 
+    you can get, ordered by severity and if the cluster is working as expected or not. Any recommendations
+    to solve each issue found should be included if possible.
+  max_retries: 3
+  agent: devops_tester
+  context:
+    - test_k8_configuration_popeye
+    - test_k8_configuration_kubectl

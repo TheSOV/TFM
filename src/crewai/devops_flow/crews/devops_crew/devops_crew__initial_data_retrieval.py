@@ -7,29 +7,22 @@ import src.crewai.devops_flow.crews.devops_crew.outputs.outputs as outputs
 import src.crewai.devops_flow.crews.devops_crew.guardrails.guardrails as guardrails
 
 @CrewBase
-class DevopsCrewInitialConfig(BaseCrew):
+class DevopsCrewInitialDataRetrieval(BaseCrew):
     """Description of your crew"""
 
     # Paths to your YAML configuration files
     # To see an example agent and task defined in YAML, checkout the following:
     # - Task: https://docs.crewai.com/concepts/tasks#yaml-configuration-recommended
     # - Agents: https://docs.crewai.com/concepts/agents#yaml-configuration-recommended
-    tasks_config = 'tasks/tasks__create_init_config.yaml'
+    tasks_config = 'tasks/tasks__retrieve_initial_data.yaml'
 
     @task
-    def research_k8s_config(self) -> Task:
+    def retrieve_image_data(self) -> Task:
         return Task(
-            config=self.tasks_config['research_k8s_config'] # type: ignore[index]
+            config=self.tasks_config['research_image_data'], # type: ignore[index]
+            output_json=outputs.ImagesDataRetrievalOutput,
+            # guardrail=guardrails.validate_images_data_retrieval
         )
-    
-    @task
-    def create_k8s_config(self) -> Task:
-        task = Task(
-            config=self.tasks_config['create_k8s_config'], # type: ignore[index]
-            output_json=outputs.CreateK8sConfigOutput,
-            guardrail=guardrails.validate_create_k8s_config
-        )
-        return task
 
     @crew
     def crew(self) -> Crew:

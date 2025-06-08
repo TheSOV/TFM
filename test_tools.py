@@ -50,14 +50,14 @@ if __name__ == "__main__":
     # result = read_tool.run(file_path="nginx-prod.yaml")
     # pprint(result)
 
-    # validation_tool = get("config_validator")
-    # result = validation_tool._run(
-    #     file_path="nginx-prod.yaml",
-    #     file_type="kubernetes",
-    #     enable_security_scan=True,
-    #     skip_checks=[]
-    # )
-    # pprint(result)
+    validation_tool = get("config_validator")
+    result = validation_tool._run(
+        file_path="nginx-prod.yaml",
+        file_type="kubernetes",
+        enable_security_scan=True,
+        skip_checks=[]
+    )
+    pprint(result)
 
     # result = k8s_dry_run("temp/nginx-prod.yaml")
     # pprint(result)
@@ -83,10 +83,24 @@ if __name__ == "__main__":
     # pprint(result)
     # print(type(result))
 
-    pullable_digest_tool = get("docker_pullable_digest_tool")
-    result = pullable_digest_tool._run(
-        repository="library/redis",
-        tag="latest"
-    )
-    pprint(result)
-    print(type(result))
+    # pullable_digest_tool = get("docker_pullable_digest_tool")
+    # result = pullable_digest_tool._run(
+    #     repository="library/redis",
+    #     tag="latest"
+    # )
+    # pprint(result)
+    # print(type(result))
+
+    # popeye_tool = get("popeye_scan")
+    # result = popeye_tool._run(
+    #     namespace="nginx-namespace"
+    # )
+    # pprint(result)
+    # print(type(result))
+
+    # dir_tool = get("directory_read")
+    # result = dir_tool._run(
+    #     directory="k8s"
+    # )
+    # pprint(result)
+    # print(type(result))

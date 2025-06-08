@@ -1,0 +1,178 @@
+# Namespace definition to isolate NGINX resources
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: nginx-production
+  labels:
+    name: nginx-production
+
+---
+# ConfigMap for NGINX configurations
+# Allows dynamic updates of configuration without rebuilding the image
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-config
+  namespace: nginx-production
+data:
+  default.conf: |
+    server {
+      listen 80;
+      server_name localhost;
+
+      location / {
+        root   /usr/share/nginx/html;
+        index  index.html index.htm;
+      }
+
+      error_page   500 502 503 504  /50x.html;
+      location = /50x.html {
+          root   /usr/share/nginx/html;
+      }
+    }
+
+---
+# Minimal NetworkPolicy to isolate NGINX pods
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: nginx-network-policy
+  namespace: nginx-production
+spec:
+  podSelector:
+    matchLabels:
+      app: nginx
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app: nginx
+  egress:
+  - to:
+    - podSelector:
+        matchLabels:
+          app: nginx
+
+---
+# NGINX Deployment with 3 replicas for high availability
+# Uses the image pinned by digest for immutability and security
+# Defines resource requests and limits for scheduling
+# Includes readiness and liveness probes for health checks
+# Adds recommended security context settings for pods and containers
+# to increase security and comply with best practices
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-deployment
+  namespace: nginx-production
+  labels:
+    app: nginx
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+      - name: nginx
+        # Use pullable digest for image to ensure immutability and security
+        image: nginx@sha256:eaa7e36decc3421fc04478c586dfea0d931cebe47d5bc0b15d758a32ba51126f
+        ports:
+        - name: http
+          containerPort: 80
+        - name: https
+          containerPort: 443
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 250m
+            memory: 256Mi
+        securityContext:
+          allowPrivilegeEscalation: true
+          readOnlyRootFilesystem: false
+          runAsNonRoot: true
+          capabilities:
+            drop:
+            - ALL
+          seccompProfile:
+            type: RuntimeDefault
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          timeoutSeconds: 3
+          successThreshold: 1
+          failureThreshold: 3
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 15
+          periodSeconds: 20
+          timeoutSeconds: 5
+          failureThreshold: 3
+        volumeMounts:
+        - name: nginx-config
+          mountPath: /etc/nginx/conf.d
+          readOnly: true
+        - name: nginx-logs
+          mountPath: /var/log/nginx
+      volumes:
+      - name: nginx-config
+        configMap:
+          name: nginx-config
+      - name: nginx-logs
+        emptyDir: {}
+      # Prevent automatic mounting of service account tokens unless needed
+      automountServiceAccountToken: false
+
+---
+# PodDisruptionBudget to ensure minimum availability during voluntary disruptions
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: nginx-pdb
+  namespace: nginx-production
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: nginx
+
+---
+# Service to expose NGINX deployment externally via LoadBalancer
+# Uses NodePort fallback if LoadBalancer service type is not supported
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-service
+  namespace: nginx-production
+  labels:
+    app: nginx
+spec:
+  type: LoadBalancer
+  ports:
+  - port: 80
+    targetPort: http
+    protocol: TCP
+    name: http
+  - port: 443
+    targetPort: https
+    protocol: TCP
+    name: https
+  selector:
+    app: nginx
+
+# End of nginx-deployment.yaml
+# This configuration is production ready with considerations for immutability, resource management, health checks, and improved security.

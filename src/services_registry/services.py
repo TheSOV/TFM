@@ -11,6 +11,7 @@ from src.crewai.tools.kubectl_tool import KubectlTool
 from src.crewai.tools.rag_tool import RagTool
 from src.crewai.tools.docker_registry_tool import DockerManifestTool, DockerImageDetailsTool, DockerPullableDigestTool
 from src.crewai.tools.utils.docker_registry_client import DockerRegistryClient, DockerRegistryAuth
+from src.crewai.tools.popeye_scan_tool import PopeyeScanTool
 
 from crewai_tools import DirectoryReadTool
 from crewai_tools import SeleniumScrapingTool
@@ -50,10 +51,6 @@ def init_services():
         weaviate_helper=get("weaviate_helper"),
         late_chunking_helper=get("late_chunking_helper")
     ), singleton=False)
-
-    register("selenium_scraper", 
-    lambda: SeleniumScrapingTool(
-        website_url="https://hub.docker.com/"), singleton=False)
 
     # Register kubectl tool with configuration from environment
     def get_namespace_set(env_var: str) -> Optional[set]:
@@ -124,6 +121,12 @@ def init_services():
     register("docker_pullable_digest_tool",
     lambda: DockerPullableDigestTool(
         registry_client=get("docker_registry_client")
+    ), singleton=False)
+    
+    # Register Popeye scan tool
+    register("popeye_scan",
+    lambda: PopeyeScanTool(
+        popeye_path=os.getenv("POPEYE_PATH", "popeye")
     ), singleton=False)
 
 

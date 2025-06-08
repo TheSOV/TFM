@@ -1,119 +1,73 @@
-research_k8s_config_errors:
-  description: >
-    Your goal is to research all the required information required for the devops_engineer to correct the errors 
-    found in the k8s config file.
-    
-    To complete the task, you should:
-    
-    <steps>
-      1 - Analyze the goal of the task and the requirements.
-      2 - Analyze the k8s config file and the errors found.
-      3 - Use all the tools available to research a get a report with all the required information about the task
-      that the devops_engineer needs to correct the errors found in the k8s config file.
-      4 - Return a detailed report with all the required information about the task, in markdown format.
-    </steps>
-    
-    a proper report should include:
-    <report_requirements>
-    - A summary of the task, with technical details and information.
-    - A comprehensive description, with technical details and information, and code examples when apply, of the 
-    resources that might be relevant for the task. Also include information that might not be for the resources
-    mentioned but might be relevant for the task.
-    </report_requirements>
-
-    <important>
-    - To use the tools available, use the proper way to use them, with Action and Action Input.
-    </important>
-
-    The initial task to be completed is the following:
-    <task>
-     {task}
-    </task>
-    
-    The errors found in the k8s config file are the following:
-    <errors>
-     {apply_errors}
-    </errors>
-
-    Additionally, other known, less critical issues found are the following:
-    <less_critical_known_issues>
-     {known_issues}
-    </less_critical_known_issues>
-
-    Less critical should has a secondary priority, errors should be fixed first.
-  expected_output: >
-    A summary of the task, in markdown format, that includes detailed information about the resources to be used, 
-    a comprehensive description, with technical details and information, and code examples when apply, of the 
-    resources that might be relevant for the task. Also include information that might not be for the resources
-    mentioned but might be relevant for the task.
-  markdown: true
-  max_retries: 3
-  agent: devops_researcher
-
 correct_k8s_config:
   description: >
     Your goal is to correct the errors found in the k8s config file.
     
-    The initial task to be completed is the following:
-    <task>
-     {task}
-    </task>
-
-    The errors found in the k8s config file are the following:
-    <errors>
-     {apply_errors}
-    </errors>
-
-    The current k8s config file is the following:
-    <k8s_config_location>
-     {file_path}
-    </k8s_config_location>
-
-    The full configuration, regarless of the task, should be defined in only one file.
-
-    To complete the task, you should:
-    
     <steps>
-      1 - The config file should be edited to correct the errors found.
-      2 - Analyze the goal of the task and the requirements.
-      3 - Analyze the errors found and the k8s config file.
-      4 - If required, request more information to the devops_researcher agent 
-      about k8s config files, images to be used, and requirements for the required config file.
-      5 - Use the file edition tools to edit the config file and correct the errors found.
-          Ensure to include comments in the config file to explain the choices made
-          and make it easier to understand.
-      6 - Validate the config file using the config validator tool.
-      6.1 - If the config file is not valid, analyze the issues found, search 
-          for information about the issues found and reason about them and 
-          the possible solutions. Then go back to step 5 to fix the issues found.
-          The security scan is the most important issue to fix, then the yaml syntax
-          that would cause the config file to be invalid then the rest of the issues.
-      6.2 - If the config file is valid, continue to the next step.
-      7 - Return a summary of the task.
-    </steps>
+    1 - Read and understand the k8s config file.    
+    2 - Analyze the content of the errors found and the k8s config file. 
+    3 - Determine what part of the file are causing the errors found.   
+    4 - Propose an solution. 
+    5 - Analyze the solution, and think if it will solve the errors found.
+    6 - If the solution will not solve the errors found, research with the devops_researcher if required for new information. 
+    Then return to step 3.
+    7 - Edit the k8s config file and correct the errors found.
+    8 - Validate the k8s config file using the config validator tool. 
+    9 - Return a summary of the task, adding the non-solved issues found, following scale:
 
-    To complete the task, you should:
-    
-    <task_completion_requirements>
-      Have a valid k8s config file, with the latest updates.
-      Before finishing, the file requires to be validated using the config validator tool.
-      The final summary should must include (if any) the non-solved issues found.
-    </task_completion_requirements> 
+    The severity levels are:
+      - low
+      - medium
+      - high
+      - very_high
+
+      The low severity issues are not critical and can be ignored. With this issues, the cluster functionality is not affected.
+      The medium severity issues are critical and should be fixed. With this issues, the cluster functionality is not affected.
+      The high severity issues are critical, representing security and/or stability issues and should be fixed. With this issues, the cluster functionality is not affected. 
+      The very_high severity issues are critical ones that prevents the cluster from working as expected.
+
+      if no issues were found, add an element with the issue "No issues found" and the severity "low".
+    </steps>
     
     <important>
+    - Take in count that the errors that are from apply and test steps, are the more important to fix, and can 
+    show contradictory information with respect to checkov errors. In that case, ignore the checkov errors and 
+    focus on the apply and test errors. At this point, you can override any good practice if required to fix the 
+    errors found, which prevents the cluster from working as expected.
     - Remember that will work over a Kind empty cluster, so the order in which the resources are created is important.
     for example, a new namespace should be created before a new deployment.
     - Enure that the non-resolved issues found are not critical for the task to be completed, and that left only because
     it is not possible to fix them with the tools available.
     - To use the tools available, use the proper way to use them, with Action and Action Input.
-    </important> 
-  expected_output: >
-    A created/edited k8s config file, with the latest updates and comments
-    explaining the choices made. 
+    - You should work over the given k8s config file, and not create a new one.
+    </important>
+
+    <task_completion_requirements>
+      Have a valid k8s config file, with the latest updates.
+      Before finishing, the file requires to be validated using the config validator tool. Take on count that config 
+      validator checks cant override a change made to solve high or very_high severity issues, preventing the 
+      cluster from working as expected.
+      The final summary should must include (if any) the non-solved issues found.
+    </task_completion_requirements> 
     
-    Also, a json output, should must include a with the paths of the created files, a little summary of what 
-    the configuration does, and a list of the non-solved issues found with explanations.
+    Some best practices to follow:
+    <best_practices>
+    - Use a namespace to isolate the resources created.
+    - Always include at the begining the namespace to be used.
+    - Do not use the latest stable tag, instead use the pullable digest to pull the image, or in its absence, 
+    use the latest stable tag by specifying the tag name.
+    </best_practices>
+    
+    The state contains the available information until the current point, use it to complete the task.
+    
+    <state>
+      {state}
+    </state>   
+  expected_output: >
+    A edited k8s config file, with the latest updates and comments explaining the choices made. 
+    
+    Also, a json output, should must include a with the paths of the created files,
+    and a list of the non-solved issues found with explanations. If the config validator tool was not executed, 
+     the list of non-solved issues should be empty. If no issues were found, add an element with the issue 
+     "No issues found" and the severity "low".
   max_retries: 3
-  context: 
-    - research_k8s_config_errors
   agent: devops_engineer

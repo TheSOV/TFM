@@ -6,30 +6,37 @@ from crewai.agents.agent_builder.base_agent import BaseAgent
 import src.crewai.devops_flow.crews.devops_crew.outputs.outputs as outputs
 import src.crewai.devops_flow.crews.devops_crew.guardrails.guardrails as guardrails
 
+from typing import List
+
 @CrewBase
-class DevopsCrewInitialConfig(BaseCrew):
+class DevopsCrewTestConfig(BaseCrew):
     """Description of your crew"""
 
     # Paths to your YAML configuration files
     # To see an example agent and task defined in YAML, checkout the following:
     # - Task: https://docs.crewai.com/concepts/tasks#yaml-configuration-recommended
     # - Agents: https://docs.crewai.com/concepts/agents#yaml-configuration-recommended
-    tasks_config = 'tasks/tasks__create_init_config.yaml'
+    tasks_config = 'tasks/tasks__test_config.yaml'
 
     @task
-    def research_k8s_config(self) -> Task:
+    def test_k8_configuration_popeye(self) -> Task:
         return Task(
-            config=self.tasks_config['research_k8s_config'] # type: ignore[index]
+            config=self.tasks_config['test_k8_configuration_popeye'] # type: ignore[index]
         )
-    
+
     @task
-    def create_k8s_config(self) -> Task:
-        task = Task(
-            config=self.tasks_config['create_k8s_config'], # type: ignore[index]
-            output_json=outputs.CreateK8sConfigOutput,
-            guardrail=guardrails.validate_create_k8s_config
+    def test_k8_configuration_kubectl(self) -> Task:
+        return Task(
+            config=self.tasks_config['test_k8_configuration_kubectl'] # type: ignore[index]
         )
-        return task
+
+    @task
+    def test_k8_configuration_report(self) -> Task:
+        return Task(
+            config=self.tasks_config['test_k8_configuration_report'], # type: ignore[index]
+            output_json=outputs.TestK8sConfigOutput,
+            guardrail=guardrails.validate_test_k8s_config
+        )
 
     @crew
     def crew(self) -> Crew:
