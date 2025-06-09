@@ -1,0 +1,61 @@
+# Namespace for nginx deployment; isolates nginx resources
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: nginx-namespace
+
+---
+
+# Nginx Deployment using the specified immutable image digest, with 3 replicas for high availability
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-deployment
+  namespace: nginx-namespace
+  labels:
+    app: nginx
+spec:
+  replicas: 3  # Ensuring high availability
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+      - name: nginx
+        image: nginx@sha256:fb39280b7b9eba5727c884a3c7810002e69e8f961cc373b89c92f14961d903a0
+        ports:
+        - containerPort: 80
+        - containerPort: 443
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 200m
+            memory: 256Mi
+
+---
+
+# Service exposing nginx on ports 80 and 443 inside the cluster
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-service
+  namespace: nginx-namespace
+spec:
+  type: ClusterIP
+  ports:
+  - name: http
+    port: 80
+    targetPort: 80
+    protocol: TCP
+  - name: https
+    port: 443
+    targetPort: 443
+    protocol: TCP
+  selector:
+    app: nginx

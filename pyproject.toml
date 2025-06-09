@@ -26,8 +26,7 @@ python-dxf = "^12.1.1"
 kubernetes = "^32.0.1"
 crewai = "^0.126.0"
 crewai-tools = "^0.47.0"
-prefect = "^3.4.4"
-opik = "^1.7.32"
+mlflow = "^2.22.1"
 
 [[tool.poetry.source]]
 name     = "pytorch-cu118"

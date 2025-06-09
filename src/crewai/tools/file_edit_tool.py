@@ -433,7 +433,7 @@ class FileEditTool(BaseTool):
                         "operations_applied": operations_applied,
                         "original_line_count": len(original_lines),
                         "new_line_count": len(changed_lines),
-                        "diff": ''.join(diff)
+                        "diff": '\n'.join(diff)
                     }
                 }
             
@@ -466,7 +466,7 @@ class FileEditTool(BaseTool):
                         "size": full_path.stat().st_size,
                         "changes": changes,
                         "expressions": expressions,
-                        "diff": ''.join(diff)
+                        "diff": '\n'.join(diff)
                     }
                 }
             

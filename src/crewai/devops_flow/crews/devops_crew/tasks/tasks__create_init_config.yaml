@@ -41,7 +41,8 @@ research_k8s_config:
 
 create_k8s_config:
   description: >
-    Your goal is to complete the given devops task, with production level, best practices and security in mind.
+    Your goal is to complete the given devops task, with a production level, high availability, configuration, but 
+    focused on simplicity and ease of use.
     
     The full configuration,regarless of the task, should be defined in only one file.
 
@@ -54,7 +55,7 @@ create_k8s_config:
       3 - Use the file creation/edition tools to create the config file.
           Ensure to include comments in the config file to explain the choices made
           and make it easier to understand.
-      4 - Validate the config file using the config validator tool.   
+      4 - Validate the config file using the config validator tool WITHOUT the security scan enabled.   
       4.1 - If the config file is not valid, analyze the issues found classify them using the follow scale:
       
       The severity levels are:
@@ -70,8 +71,9 @@ create_k8s_config:
       
       Then search for information about the issues found, and reason about the possible solutions.
       
-      Then go back to step 3 to fix the issues found. The security scan is the most important issue to fix, then the yaml syntax
-      that would cause the config file to be invalid then the rest of the issues. Use the severity level to prioritize the issues to fix.
+      Then go back to step 3 to fix the issues found. The yaml syntax issues
+      that would cause the config file to be invalid then the rest of the issues.
+      Use the severity level to prioritize the issues to fix.
       
       4.2 - If the config file is valid, continue to the next step.
       5 - Return a summary of the task.
