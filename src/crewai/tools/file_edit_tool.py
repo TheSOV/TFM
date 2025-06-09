@@ -29,6 +29,8 @@ class FileCreateRequest(BaseModel):
                        Use forward slashes ('/') for cross-platform compatibility.
         content (str): Content to write to the new file. For multi-line content,
                      use '\n' for line breaks and ensure proper escaping in JSON.
+        comment (str): Optional comment for version control commit message.
+                      If not provided, a default message will be used.
     """
     file_path: str = Field(
         ...,
@@ -39,6 +41,11 @@ class FileCreateRequest(BaseModel):
         ...,
         description=("Content to write to the new file. For multi-line content, "
                    "use '\\n' for line breaks. Ensure proper escaping in JSON.")
+    )
+    comment: str = Field(
+        ...,
+        description=("Comment for version control commit message. "
+                   "Describes the purpose of this file creation. This field is mandatory.")
     )
 
 
@@ -91,6 +98,8 @@ class FileEditRequest(BaseModel):
             This takes precedence over expressions and line_operations.
         line_operations (Optional[List[LineOperation]]): Line-specific operations.
             Takes precedence over expressions, but not over content.
+        comment (str): Comment for version control commit message.
+            This field is mandatory.
     """
     file_path: str = Field(..., description="Path to the file to edit, relative to base directory")
     expressions: Optional[List[str]] = Field(None, 
@@ -99,6 +108,10 @@ class FileEditRequest(BaseModel):
         description="If provided, completely replaces the file content instead of using expressions")
     line_operations: Optional[List[LineOperation]] = Field(None,
         description="List of line-specific operations to perform on the file")
+    comment: str = Field(
+        ...,
+        description="Comment for version control commit message. Describes the purpose of this edit. This field is mandatory."
+    )
 
 
 class FileReadRequest(BaseModel):
@@ -117,16 +130,18 @@ class FileCreateTool(BaseTool):
     
     Parameters:
         base_dir (str | Path): The base directory for all file operations.
+        versioning (Optional): FileVersioning instance for version control.
     """
     name: str = "file_create"
     description: str = (
         "Creates a new file with your specified content. If the file already exists, this tool will not work. "
         "\n\nHOW TO USE THIS TOOL:\n"
-        "- Provide a single JSON object (dictionary) with two keys: 'file_path' and 'content'.\n"
+        "- Provide a single JSON object (dictionary) with keys: 'file_path', 'content', and optionally 'comment'.\n"
         "- DO NOT provide a list/array or combine multiple operations in one call—this will result in an error.\n"
         "- Only one file creation operation is allowed per call.\n"
         "- 'file_path' should be a string using forward slashes ('/'), e.g., 'folder/my_file.txt'.\n"
         "- 'content' should be a string. For multi-line content, use '\\n' for line breaks.\n"
+        "- 'comment' is optional and will be used as the version control commit message.\n"
         "- When using JSON, escape special characters properly:\n"
         "  - Double quotes: \\\"\n"
         "  - Newlines: \\n\n"
@@ -134,17 +149,17 @@ class FileCreateTool(BaseTool):
         "- IMPORTANT: Do NOT add backslashes at the end of each line in your content. This will cause issues with YAML files.\n\n"
         "\nEXAMPLES:\n"
         "1. Create a simple text file:\n"
-        "   {\"file_path\": \"notes/reminder.txt\", \"content\": \"Remember to call John tomorrow.\"}\n"
+        "   {\"file_path\": \"notes/reminder.txt\", \"content\": \"Remember to call John tomorrow.\", \"comment\": \"Add reminder note\"}\n"
         "2. Create a Python script with multiple lines:\n"
-        "   {\"file_path\": \"scripts/hello.py\", \"content\": \"def hello():\\n    print('Hello, world!')\\n\\nif __name__ == '__main__':\\n    hello()\"}\n"
+        "   {\"file_path\": \"scripts/hello.py\", \"content\": \"def hello():\\n    print('Hello, world!')\\n\\nif __name__ == '__main__':\\n    hello()\", \"comment\": \"Add hello world script\"}\n"
         "3. Create a YAML configuration file:\n"
-        "   {\"file_path\": \"config/settings.yaml\", \"content\": \"# YAML example - note NO backslashes at end of lines\\ndatabase:\\n  host: localhost\\n  port: 5432\\n  name: myapp\\n\\nserver:\\n  port: 3000\\n  environment: production\"}\n"
+        "   {\"file_path\": \"config/settings.yaml\", \"content\": \"# YAML example - note NO backslashes at end of lines\\ndatabase:\\n  host: localhost\\n  port: 5432\\n  name: myapp\\n\\nserver:\\n  port: 3000\\n  environment: production\", \"comment\": \"Add application configuration\"}\n"
         "4. Create a JSON file (note escaped quotes):\n"
-        "   {\"file_path\": \"data/config.json\", \"content\": \"{\\\"api_key\\\": \\\"your-api-key\\\", \\\"timeout\\\": 30, \\\"enabled\\\": true}\"}\n"
+        "   {\"file_path\": \"data/config.json\", \"content\": \"{\\\"api_key\\\": \\\"your-api-key\\\", \\\"timeout\\\": 30, \\\"enabled\\\": true}\", \"comment\": \"Add API configuration\"}\n"
         "\nTROUBLESHOOTING:\n"
         "- If you see 'not a valid key, value dictionary' errors, you are likely passing an array (list) or combining multiple operations.\n"
         "  INVALID (will fail):\n    [\n      {\"file_path\": \"file1.txt\", \"content\": \"foo\"},\n      {\"file_path\": \"file2.txt\", \"content\": \"bar\"}\n    ]\n"
-        "  VALID (will succeed):\n    {\"file_path\": \"file1.txt\", \"content\": \"foo\"}\n"
+        "  VALID (will succeed):\n    {\"file_path\": \"file1.txt\", \"content\": \"foo\", \"comment\": \"Add foo file\"}\n"
         "  Only a single dictionary/object is allowed per call.\n"
         "- If you see extra backslashes, ensure you're not double-escaping the content.\n"
         "- For multi-line content, use '\\n' for line breaks, not actual newlines.\n"
@@ -152,62 +167,90 @@ class FileCreateTool(BaseTool):
     )
     args_schema: Type[BaseModel] = FileCreateRequest
     _base_dir: str = PrivateAttr()
+    _versioning = PrivateAttr(default=None)
     
-    def __init__(self, base_dir: Union[str, Path], **kwargs) -> None:
+    def __init__(self, base_dir: Union[str, Path], versioning=None, **kwargs) -> None:
         """
         Initialize the FileCreateTool.
         
         Args:
             base_dir (str | Path): The base directory for all file operations.
+            versioning: Optional FileVersioning instance for version control.
         """
         super().__init__(**kwargs)
         self._base_dir = str(base_dir)
+        self._versioning = versioning
     
-    def _run(self, file_path: str, content: str) -> Dict[str, Any]:
+    def _run(self, file_path: str, content: str, comment: str) -> Dict[str, Any]:
         """
-        Create a new file with the specified content.
+        Create a new file with the specified content and add it to version control.
         
         Args:
             file_path (str): Path to the file to create, relative to base_dir.
                 Use forward slashes ('/') for OS-agnostic paths.
             content (str): Content to write to the new file.
+            comment (str): Comment for version control commit message.
             
         Returns:
             Dict[str, Any]: Result of the operation, including success status and details.
         """
         try:
+            # Normalize the path separators
+            file_path = file_path.replace('\\', '/')
+            
+            # Create the full path
             full_path = os.path.join(self._base_dir, file_path)
+            
+            # Ensure the directory exists
+            os.makedirs(os.path.dirname(full_path), exist_ok=True)
             
             # Check if file already exists
             if os.path.exists(full_path):
                 return {
                     "success": False,
-                    "error": f"File {file_path} already exists. Use file_edit tool to modify existing files.",
-                    "details": {"path": str(full_path)}
+                    "error": f"File already exists: {file_path}",
+                    "details": "Use the file_edit tool to modify existing files."
                 }
             
-            # Create parent directories if they don't exist
-            os.makedirs(os.path.dirname(full_path), exist_ok=True)
-            
-            # Write content to file
-            with open(full_path, "w", encoding="utf-8") as f:
+            # Write the content to the file
+            with open(full_path, 'w', encoding='utf-8') as f:
                 f.write(content)
             
-            return {
+            # Add to version control if versioning is available
+            commit_sha = None
+            if self._versioning:
+                try:
+                    # Add the file to version control
+                    self._versioning.add_file(file_path)
+                    
+                    # Commit the changes
+                    commit_sha = self._versioning.commit_changes(comment)
+                    _logger.info(f"File {file_path} added to version control with commit {commit_sha}")
+                except Exception as ve:
+                    _logger.warning(f"Failed to version file {file_path}: {str(ve)}")
+            
+            # Return success
+            result = {
                 "success": True,
-                "message": f"File {file_path} created successfully.",
-                "details": {
-                    "path": full_path,
-                    "size": os.path.getsize(full_path)
-                }
+                "file_path": file_path,
+                "full_path": full_path,
+                "details": f"File created successfully: {file_path}"
             }
+            
+            # Add versioning information if available
+            if commit_sha:
+                result["versioned"] = True
+                result["commit_sha"] = commit_sha
+                result["version_comment"] = comment
+            
+            return result
             
         except Exception as e:
             _logger.error(f"Error creating file {file_path}: {str(e)}")
             return {
                 "success": False,
-                "error": f"Error creating file: {str(e)}",
-                "details": {"exception": str(e)}
+                "error": str(e),
+                "details": f"Failed to create file: {file_path}"
             }
 
 
@@ -217,6 +260,7 @@ class FileEditTool(BaseTool):
     
     Parameters:
         base_dir (str | Path): The base directory for all file operations.
+        versioning (Optional): FileVersioning instance for version control.
     """
     name: str = "file_edit"
     description: str = (
@@ -267,26 +311,31 @@ class FileEditTool(BaseTool):
         )
     args_schema: Type[BaseModel] = FileEditRequest
     _base_dir: str = PrivateAttr()
+    _versioning = PrivateAttr(default=None)
     
-    def __init__(self, base_dir: Union[str, Path], **kwargs) -> None:
+    def __init__(self, base_dir: Union[str, Path], versioning=None, **kwargs) -> None:
         """
         Initialize the FileEditTool.
         
         Args:
             base_dir (str | Path): The base directory for all file operations.
+            versioning: Optional FileVersioning instance for version control.
         """
         super().__init__(**kwargs)
         self._base_dir = str(base_dir)
+        self._versioning = versioning
     
     def _run(
         self, 
         file_path: str, 
+        comment: str,
         expressions: Optional[List[str]] = None, 
         content: Optional[str] = None,
         line_operations: Optional[List[Dict[str, Any]]] = None
     ) -> Dict[str, Any]:
         """
         Edit an existing file using one of three methods: expressions, content replacement, or line operations.
+        Then add the changes to version control.
         
         Args:
             file_path (str): Path to the file to edit, relative to base_dir.
@@ -294,6 +343,7 @@ class FileEditTool(BaseTool):
             expressions (Optional[List[str]]): List of Python expressions to modify the file content.
             content (Optional[str]): If provided, completely replaces the file content.
             line_operations (Optional[List[Dict[str, Any]]]): List of line-specific operations to perform.
+            comment (str): Comment for version control commit message.
             
         Returns:
             Dict[str, Any]: Result of the operation, including success status and details.
@@ -329,7 +379,21 @@ class FileEditTool(BaseTool):
                     lineterm=''
                 ))
                 
-                return {
+                # Add to version control if versioning is available
+                commit_sha = None
+                if self._versioning:
+                    try:
+                        # Add the file to version control
+                        self._versioning.add_file(file_path)
+                        
+                        # Commit the changes
+                        commit_sha = self._versioning.commit_changes(comment)
+                        _logger.info(f"File {file_path} content replaced and committed to version control with commit {commit_sha}")
+                    except Exception as ve:
+                        _logger.warning(f"Failed to version edited file {file_path}: {str(ve)}")
+                
+                # Prepare result
+                result = {
                     "success": True,
                     "message": f"File {file_path} content replaced successfully.",
                     "details": {
@@ -339,6 +403,14 @@ class FileEditTool(BaseTool):
                         "diff": ''.join(diff)
                     }
                 }
+                
+                # Add versioning information if available
+                if commit_sha:
+                    result["versioned"] = True
+                    result["commit_sha"] = commit_sha
+                    result["version_comment"] = comment
+                
+                return result
             
             # If line operations are provided, apply them directly (second precedence)
             elif line_operations is not None and len(line_operations) > 0:
@@ -424,7 +496,21 @@ class FileEditTool(BaseTool):
                     lineterm=''
                 ))
                 
-                return {
+                # Add to version control if versioning is available
+                commit_sha = None
+                if self._versioning:
+                    try:
+                        # Add the file to version control
+                        self._versioning.add_file(file_path)
+                        
+                        # Commit the changes
+                        commit_sha = self._versioning.commit_changes(comment)
+                        _logger.info(f"File {file_path} edited and committed to version control with commit {commit_sha}")
+                    except Exception as ve:
+                        _logger.warning(f"Failed to version edited file {file_path}: {str(ve)}")
+                
+                # Prepare result
+                result = {
                     "success": True,
                     "message": f"File {file_path} edited successfully with {operations_applied} line operations.",
                     "details": {
@@ -436,6 +522,14 @@ class FileEditTool(BaseTool):
                         "diff": '\n'.join(diff)
                     }
                 }
+                
+                # Add versioning information if available
+                if commit_sha:
+                    result["versioned"] = True
+                    result["commit_sha"] = commit_sha
+                    result["version_comment"] = comment
+                
+                return result
             
             # If expressions are provided, use massedit to apply them (third precedence)
             elif expressions is not None and len(expressions) > 0:
@@ -458,7 +552,21 @@ class FileEditTool(BaseTool):
                     lineterm=''
                 ))
                 
-                return {
+                # Add to version control if versioning is available
+                commit_sha = None
+                if self._versioning:
+                    try:
+                        # Add the file to version control
+                        self._versioning.add_file(file_path)
+                        
+                        # Commit the changes
+                        commit_sha = self._versioning.commit_changes(comment)
+                        _logger.info(f"File {file_path} edited with expressions and committed to version control with commit {commit_sha}")
+                    except Exception as ve:
+                        _logger.warning(f"Failed to version edited file {file_path}: {str(ve)}")
+                
+                # Prepare result
+                result = {
                     "success": True,
                     "message": f"File {file_path} edited successfully using expressions.",
                     "details": {
@@ -469,6 +577,14 @@ class FileEditTool(BaseTool):
                         "diff": '\n'.join(diff)
                     }
                 }
+                
+                # Add versioning information if available
+                if commit_sha:
+                    result["versioned"] = True
+                    result["commit_sha"] = commit_sha
+                    result["version_comment"] = comment
+                
+                return result
             
             else:
                 return {

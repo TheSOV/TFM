@@ -47,7 +47,9 @@ class BaseCrew:
                 services.get("file_create"),
                 services.get("file_edit"),
                 services.get("file_read"),
-                # services.get("directory_read"),
+                services.get("file_version_history"),
+                services.get("file_version_diff"),
+                services.get("file_version_restore"),
                 services.get("config_validator"),
             ]
         )
@@ -78,7 +80,6 @@ class BaseCrew:
                 services.get("kubectl"),
                 services.get("file_read"),
                 services.get("popeye_scan"),
-                # services.get("directory_read")
             ]
         )
 

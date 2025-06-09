@@ -12,6 +12,8 @@ from src.crewai.tools.rag_tool import RagTool
 from src.crewai.tools.docker_registry_tool import DockerManifestTool, DockerImageDetailsTool, DockerPullableDigestTool
 from src.crewai.tools.utils.docker_registry_client import DockerRegistryClient, DockerRegistryAuth
 from src.crewai.tools.popeye_scan_tool import PopeyeScanTool
+from src.crewai.tools.file_version_history_tool import FileVersionHistoryTool, FileVersionDiffTool, FileVersionRestoreTool
+from src.version_control.versioning_utils import FileVersioning
 
 from crewai_tools import DirectoryReadTool
 from crewai_tools import SeleniumScrapingTool
@@ -69,14 +71,22 @@ def init_services():
         base_dir=os.getenv("TEMP_FILES_DIR", "/temp")  # Use same base dir as other file operations
     ), singleton=False)
 
+    # Register FileVersioning as a singleton
+    register("file_versioning", 
+    lambda: FileVersioning(
+        repo_path=os.getenv("TEMP_FILES_DIR")
+    ), singleton=True)
+    
     register("file_create", 
     lambda: FileCreateTool(
-        base_dir=os.getenv("TEMP_FILES_DIR")
+        base_dir=os.getenv("TEMP_FILES_DIR"),
+        versioning=get("file_versioning")
     ), singleton=False)
 
     register("file_edit", 
     lambda: FileEditTool(
-        base_dir=os.getenv("TEMP_FILES_DIR")
+        base_dir=os.getenv("TEMP_FILES_DIR"),
+        versioning=get("file_versioning")
     ), singleton=False)
 
     register("file_read", 
@@ -84,11 +94,23 @@ def init_services():
         base_dir=os.getenv("TEMP_FILES_DIR")
     ), singleton=False)
 
-    register("directory_read", 
-    lambda: DirectoryReadTool(
-        directory=os.getenv("TEMP_FILES_DIR")
-    ),     
-    singleton=False)
+    register("file_version_history", 
+    lambda: FileVersionHistoryTool(
+        base_dir=os.getenv("TEMP_FILES_DIR"),
+        versioning=get("file_versioning")
+    ), singleton=False)
+
+    register("file_version_diff", 
+    lambda: FileVersionDiffTool(
+        base_dir=os.getenv("TEMP_FILES_DIR"),
+        versioning=get("file_versioning")
+    ), singleton=False)
+
+    register("file_version_restore", 
+    lambda: FileVersionRestoreTool(
+        base_dir=os.getenv("TEMP_FILES_DIR"),
+        versioning=get("file_versioning")
+    ), singleton=False)
 
     register("config_validator", 
     lambda: ConfigValidatorTool(
