@@ -1,0 +1,19 @@
+get_image_names:
+  description: >
+    **Goal**  
+    Derive a list of container image names from the advanced plan. No need to get details,
+    versions, tags, etc. Only the image name.
+
+    <blackboard>
+    {blackboard}
+    </blackboard>
+
+    <feedback>
+    {feedback}
+    </feedback>
+  expected_output: >
+    a JSON list of image names
+  max_retries: 3
+  agent: devops_researcher
+
+

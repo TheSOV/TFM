@@ -1,0 +1,163 @@
+gather_information:
+  description: >
+    **Goal - draft the manifest blueprint**  
+    Extract from *user_request* only the architectural and operational facts
+    needed to write Kubernetes YAML.
+
+    **What you must enumerate**
+
+    • **System-level View** - micro-services, batch jobs, event buses and how they
+      talk (HTTP/gRPC, queue, topic).  
+    • **Cluster Topology** - target *single* cluster; propose namespace(s) that
+      are **never “default”** plus optional node-pool/taint hints.  
+    • **Component Catalogue** - workload → one-line mission → **image name
+      only** (e.g. nginx, redis, mycorp/api).  
+    • **Kubernetes Resources & Why** - include only objects we will
+      template: Deployment/StatefulSet, Service, Ingress | Gateway,
+      HPA/VPA, ConfigMap, RBAC, NetworkPolicy, ServiceAccount,
+      Volumes/PVC, AdmissionPolicy.  
+    • **Configuration Surface** - prelim Env Vars, ConfigMaps vs. Secrets
+      (do *not* mix); mount paths; projected tokens.  
+    • **Scalability & HA** - initial replica counts + HPA trigger metric
+      (CPU / memory), pod anti-affinity, upgrade strategy.  
+    • **Networking & Routing** - ClusterIP vs headless; ingress class; egress
+      allow/deny; DNS naming convention.  
+    • **Security Controls** - RBAC bindings, PodSecurityStandard level
+      (“baseline”/“restricted”); securityContext knobs
+      (runAsNonRoot, fsGroup); image-signature policy.    
+    • **External Dependencies** - DBs, caches, cloud services.  
+    • **Platform Constraints** - ARM/GPU, OS distro, container runtime.  
+    • **Manifests Layout** - repo tree *for test only*; no overlays:
+      ```
+      /manifests/
+        api-deployment.yaml
+        api-service.yaml
+      ```  
+      Use GitOps-friendly directory names (workloads/, network/, rbac/).
+
+    *If any datum is missing, ping **devops_researcher**; otherwise fallback to
+    published best practice and cite the source.*
+
+    <blackboard>
+    {blackboard}
+    </blackboard>
+
+    <feedback>
+    {feedback}
+    </feedback>
+  expected_output: >
+    Markdown only—no YAML/JSON/code—answer *every* bullet with concrete detail.
+    Images must be bare names (nginx, redis).  Another senior engineer should
+    build the cluster without further Q & A.
+  markdown: true
+  max_retries: 3
+  agent: devops_researcher
+
+research_project:
+  description: >
+    **Goal - harden the blueprint with facts**  
+    Replace all placeholders in *project_objective* with evidence-backed
+    content.
+
+    **Research workflow**
+
+    1. Query official docs for each object.  
+    2. Check security/RBAC guidance (PodSecurity Standards, securityContext).  
+    3. Validate scaling values against HPA walkthroughs and custom-metric limits.  
+    4. Confirm directory/naming scheme with GitOps references (Argo CD, Flux).  
+    5. Note conflicts; resolve via community precedence (CNCF, SIG notes).  
+    6. Justify each change in ≤ 1 sentence with citation. 
+
+  expected_output: >
+    Narrative prose or structured Markdown—**no YAML/JSON/code blocks**—that replaces
+    all placeholders with fact-based content, backed by cited sources.
+    Include only container image names. Each field must present precise, actionable
+    information ready for engineering implementation.
+  markdown: true
+  max_retries: 3
+  context:
+    - gather_information
+  agent: devops_researcher
+
+create_advanced_plan:
+  description: >
+    **Goal - production-ready manifest playbook (test env only)**  
+    Guide a senior engineer through every ordered step required to finish all
+    YAML—*pre-observability*, single **/manifests** tree.
+
+    **Deliverable**
+
+    • **Milestones** - namespace → core objects → secrets/config → ingress →
+      HPA on → PDB + rollout gates.  
+    • **Resource Breakdown** - table: *namespace* | *kind* | *relationship*
+      (Deployment ↔ HPA ↔ Service).  
+    • **Dependency Prep** - secrets first, then ConfigMaps, then workloads; PVC before StatefulSet.  
+    • **Scaling & Resilience** - replica baseline; HPA metric and min/max; PDB
+      `minAvailable`; simple fail-over story.  
+    • **Security & Governance** - RBAC roles, NetworkPolicies deny-all +
+      allow-list, restricted PodSecurity level.  
+    • **Documentation & Handoff** - inline YAML comments, naming rules
+      (`*-deployment.yaml`), commit message template.  
+    • **Manifests Layout** - **no overlays**; example:  
+      ```
+      /manifests/
+        workloads/
+        network/
+        rbac/
+      ``` 
+    • **Out-of-Scope** - observability, cost tuning, chaos tests.
+
+    <Important>
+      Ensure that the plan matches the request of the user requirements, do not include
+      elements that will be not used.
+    </Important>
+
+    <blackboard>
+    {blackboard}
+    </blackboard>
+
+    <feedback>
+    {feedback}
+    </feedback>
+
+  expected_output: >
+    Markdown only—no YAML/JSON/code—image names only.  Enough detail for a
+    senior engineer to generate final manifests without guesswork.
+  markdown: true
+  max_retries: 3
+  context:
+    - research_project
+  agent: devops_researcher
+
+create_basic_plan:
+  description: >
+    **Goal - pocket-sized starter plan**  
+    Condense the advanced plan into a checklist a mid-level engineer can follow
+    to write the first manifests fast.
+
+    **Must include**
+
+    • Key milestones in one table (step → success criterion).  
+    • Critical defaults (namespace names, directory skeleton).  
+    • Any “gotchas” the advanced plan flags (e.g., must create Secret before
+      Deployment).  
+    • Exact **Manifests Layout** copied from advanced plan.
+
+    <blackboard>
+    {blackboard}
+    </blackboard>
+
+    <feedback>
+    {feedback}
+    </feedback>
+    
+  expected_output: >
+    Markdown checklist—no YAML/JSON/code—image names only; gives enough to
+    start coding manifests immediately.
+  markdown: true
+  max_retries: 3
+  context:
+    - create_advanced_plan
+  agent: devops_researcher
+
+

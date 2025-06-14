@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DevopsFlow</title>
+  
+  <!-- Quasar CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/quasar@2/dist/quasar.css" rel="stylesheet" type="text/css">
+  
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/@mdi/font@6.9.96/css/materialdesignicons.min.css" rel="stylesheet">
+  
+  <style>
+    :root {
+      --q-primary: #1976D2;
+      --q-secondary: #26A69A;
+      --q-accent: #9C27B0;
+      --q-dark: #1D1D1D;
+      --q-positive: #21BA45;
+      --q-negative: #C10015;
+      --q-info: #31CCEC;
+      --q-warning: #F2C037;
+    }
+    
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: 'Roboto', sans-serif;
+      background-color: #f5f5f5;
+      color: #333;
+    }
+    
+    #q-app {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    
+    .page-container {
+      max-width: 100%; /* Changed from 1200px */
+      margin: 0; /* Removed auto margin for centering */
+      padding: 0; /* Removed padding, q-page will handle it */
+      width: 100%;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+    
+    .card-container {
+      max-width: 100%; /* Changed from 800px */
+      margin: 0; /* Removed auto margin for centering */
+      width: 100%;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+    
+    .form-actions {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+    
+    .blackboard-content {
+      padding: 20px;
+      background: #f8f9fa;
+      border-radius: 4px;
+      white-space: pre-wrap;
+      max-height: 70vh;
+      overflow-y: auto;
+      font-family: 'Roboto Mono', monospace;
+      font-size: 14px;
+      line-height: 1.5;
+      margin: 0;
+    }
+    
+    /* Fade transition for route changes */
+    .fade-enter-active,
+    .fade-leave-active {
+      transition: opacity 0.2s ease;
+    }
+    
+    .fade-enter-from,
+    .fade-leave-to {
+      opacity: 0;
+    }
+
+    /* Markdown content specific styles */
+    .markdown-content h1 {
+      font-size: 1.6em; /* Adjust as needed */
+      margin-top: 0.8em;
+      margin-bottom: 0.4em;
+    }
+    .markdown-content h2 {
+      font-size: 1.4em; /* Adjust as needed */
+      margin-top: 0.7em;
+      margin-bottom: 0.3em;
+    }
+    .markdown-content h3 {
+      font-size: 1.2em; /* Adjust as needed */
+      margin-top: 0.6em;
+      margin-bottom: 0.2em;
+    }
+    .markdown-content h4 {
+      font-size: 1.0em; /* Adjust as needed */
+      font-weight: bold;
+      margin-top: 0.5em;
+      margin-bottom: 0.1em;
+    }
+    .markdown-content p {
+      line-height: 1.6;
+    }
+    .markdown-content ul, .markdown-content ol {
+      padding-left: 20px;
+      line-height: 1.6;
+    }
+    .markdown-content pre {
+      background-color: #f0f0f0; /* Slightly different from default for visibility */
+      padding: 12px;
+      border-radius: 4px;
+      overflow-x: auto;
+      white-space: pre-wrap; 
+      word-wrap: break-word; 
+    }
+    .markdown-content code:not(pre code) { /* Inline code */
+      background-color: #e8e8e8;
+      padding: 0.2em 0.4em;
+      margin: 0;
+      font-size: 85%;
+      border-radius: 3px;
+    }
+    .markdown-content pre code {
+      background-color: transparent; /* Code within pre should not have its own background */
+      padding: 0;
+      font-size: inherit;
+      border-radius: 0;
+    }
+    .markdown-content blockquote {
+      border-left: 4px solid #ccc;
+      padding-left: 15px;
+      color: #555;
+      margin-left: 0;
+      font-style: italic;
+    }
+    .markdown-content table {
+      border-collapse: collapse;
+      width: 100%;
+      margin-bottom: 1em;
+    }
+    .markdown-content th,
+    .markdown-content td {
+      border: 1px solid #ddd;
+      padding: 8px;
+      text-align: left;
+    }
+    .markdown-content th {
+      background-color: #f2f2f2;
+      font-weight: bold;
+    }
+    
+    @media (max-width: 600px) {
+      .page-container {
+        padding: 10px;
+      }
+      
+      .form-actions {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      
+      .form-actions .q-btn {
+        width: 100%;
+        margin-bottom: 8px;
+      }
+      
+      .form-actions .q-space {
+        display: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="q-app">
+    <q-layout view="hHh Lpr lFf">
+      <q-header elevated class="bg-primary text-white">
+        <q-toolbar>
+          <q-toolbar-title class="text-h5 text-weight-bold">
+            <q-icon name="mdi-robot" class="q-mr-sm" />
+            DevopsFlow
+          </q-toolbar-title>
+          <q-space />
+          <q-tabs v-model="currentTab" dense active-color="white" indicator-color="yellow-6" align="right">
+            <q-route-tab 
+              name="home" 
+              to="/" 
+              label="Home" 
+              icon="home" 
+              class="text-white"
+            />
+            <q-route-tab 
+              name="blackboard" 
+              to="/blackboard" 
+              label="Blackboard" 
+              icon="description"
+              class="text-white"
+            />
+          </q-tabs>
+        </q-toolbar>
+      </q-header>
+      
+      <q-page-container>
+        <router-view v-slot="{ Component }">
+          <transition name="fade" mode="out-in">
+            <component :is="Component" />
+          </transition>
+        </router-view>
+      </q-page-container>
+    </q-layout>
+  </div>
+
+  <!-- <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script> -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/showdown/2.1.0/showdown.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.prod.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/vue-router@4/dist/vue-router.global.prod.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/quasar@2/dist/quasar.umd.js"></script>
+
+  <script src="/static/js/services/api.js"></script>
+  <script src="/static/js/components/blackboard/UserRequestDisplay.js"></script>
+  <script src="/static/js/components/blackboard/PlansDisplay.js"></script>
+  <script src="/static/js/components/blackboard/ManifestsTree.js"></script>
+  <script src="/static/js/components/blackboard/ImagesList.js"></script>
+  <script src="/static/js/components/blackboard/IssuesList.js"></script>
+  <script src="/static/js/components/blackboard/RecordsList.js"></script>
+  <script src="/static/js/pages/HomePage.js"></script>
+  <script src="/static/js/pages/BlackboardPage.js"></script>
+  <script src="/static/js/router/index.js"></script>
+  <script src="/static/js/app.js"></script>
+
+  <!-- Fallback for browsers without module support -->
+  <script nomodule>
+    document.body.innerHTML = `
+      <div style="font-family: 'Roboto', sans-serif; max-width: 800px; margin: 2rem auto; padding: 2rem; text-align: center;">
+        <h1>Browser Not Supported</h1>
+        <p>This application requires a modern browser that supports JavaScript modules.</p>
+        <p>Please use the latest version of Chrome, Firefox, Safari, or Edge.</p>
+      </div>
+    `;
+  </script>
+</body>
+</html>

@@ -2,12 +2,12 @@
 Docker Registry Client for interacting with Docker Registry API.
 This is a utility class that provides common functionality for Docker registry operations.
 """
-from typing import Dict, Any
+from typing import Dict, Any, List, Optional
 from pydantic import BaseModel, Field
 from dxf import DXF
 import json
 import subprocess
-
+from pprint import pprint
 
 class DockerRegistryAuth(BaseModel):
     """Authentication details for Docker Registry."""
@@ -138,3 +138,94 @@ class DockerRegistryClient:
             
         except Exception as e:
             raise RuntimeError(f"Failed to inspect image {image_ref}: {str(e)}")
+
+    def search_images_cli(
+        self,
+        query: str,
+        limit: int = 25,
+        official_only: Optional[bool] = None,
+        verified_only: Optional[bool] = None,
+        sort_by_stars: bool = True,
+    ) -> List[Dict]:
+        """Search Docker Hub images via ``docker search`` CLI.
+
+        Parameters
+        ----------
+        query : str
+            Search term.
+        limit : int, default 25
+            Maximum results to return (CLI supports up to 100).
+        official_only : bool | None, default None
+            If True, return only official images; False, only non-official;
+            None, no filter.
+        verified_only : bool | None, default None
+            Filter by *verified publisher* flag similarly.
+        sort_by_stars : bool, default True
+            Sort results descending by stars.
+
+        Returns
+        -------
+        List[Dict]
+            Each dict contains ``full_name``, ``description``, ``official``,
+            ``verified``, ``stars`` (int).
+        """
+
+        format_str = "{{json .}}"  # each result line as JSON
+
+        cmd = [
+            "docker",
+            "search",
+            "--format",
+            format_str,
+            "--limit",
+            str(limit),
+            query,
+        ]
+
+        try:
+            res = subprocess.run(
+                cmd, capture_output=True, text=True, check=True
+            )
+        except subprocess.CalledProcessError as exc:
+            raise RuntimeError(
+                f"docker search failed: {exc.stderr or exc.stdout}"
+            ) from exc
+
+        results: List[Dict] = []
+
+        for line in res.stdout.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                item = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+
+            # Values from docker search are strings ("true" / "false")
+            def _as_bool(val: str | bool | None) -> bool:
+                if isinstance(val, bool):
+                    return val
+                if isinstance(val, str):
+                    return val.lower() == "true" or val.lower() == "[ok]"
+                return False
+
+            info = {
+                "full_name": item.get("Name"),
+                "description": item.get("Description", ""),
+                "official": _as_bool(item.get("IsOfficial")),
+                "verified": _as_bool(item.get("IsTrusted")),
+                "automated": _as_bool(item.get("IsAutomated")),
+                "stars": int(item.get("StarCount", 0)),
+            }
+
+            if (
+                (official_only is None or info["official"] == official_only)
+                and (verified_only is None or info["verified"] == verified_only)
+            ):
+                results.append(info)
+
+        if sort_by_stars:
+            results.sort(key=lambda x: x["stars"], reverse=True)
+
+        return results

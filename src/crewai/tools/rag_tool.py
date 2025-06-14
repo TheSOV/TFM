@@ -5,6 +5,8 @@ from src.database.weviate import WeaviateHelper
 from src.embeddings.late_chunking import LateChunkingHelper
 from pydantic import PrivateAttr
 from typing import Optional
+from crewai import LLM
+import os
 
 class RagToolInput(BaseModel):
     """Input schema for MyCustomTool."""
@@ -40,6 +42,10 @@ class RagTool(BaseTool):
         super().__init__(**kwargs)
         self._weaviate_helper = weaviate_helper
         self._late_chunking_helper = late_chunking_helper
+        self._llm = LLM(
+            model=os.getenv("TOOL_MODEL"),
+            temperature=0,            
+            )
 
         # Set dynamic description if helpers are available
         desc = "The rag_tool is used to search in the knowledge base. Specify the query and the collection to search in. "
@@ -79,6 +85,18 @@ class RagTool(BaseTool):
         docs = [doc.properties for doc in retrieved_docs]
 
         reranked_docs = self._late_chunking_helper.re_rank(query = query, docs = docs, top_k = rerank_limit)
-        return reranked_docs
+
+        report = self._llm.call(f"""You are an expert in the field of computer science and devops.
+        
+        The target audience of your report is a group devops working on a kubernetes cluster.
+
+        Your task is to answer the question: to provide an answer to the question in a comprehensive report in markdown format, and additionally mentions other relevant information that might be related directly or indirectly.
+
+        In case there is code in the documents, you should provide the code in the report.
+        
+        <question>{query}</question>
+        <documents>{reranked_docs}</documents>
+        """)
+        return report
 
 

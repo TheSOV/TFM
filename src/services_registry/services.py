@@ -1,5 +1,6 @@
 from typing import Callable, Any, Dict, Tuple, Optional
 import os
+import threading
 
 from src.embeddings.late_chunking import LateChunkingHelper
 from src.database.weviate import WeaviateHelper
@@ -9,20 +10,32 @@ from src.crewai.tools.file_edit_tool import FileCreateTool, FileEditTool, FileRe
 from src.crewai.tools.config_validator import ConfigValidatorTool
 from src.crewai.tools.kubectl_tool import KubectlTool
 from src.crewai.tools.rag_tool import RagTool
-from src.crewai.tools.docker_registry_tool import DockerManifestTool, DockerImageDetailsTool, DockerPullableDigestTool
+from src.crewai.tools.docker_registry_tool import (
+    DockerManifestTool,
+    DockerImageDetailsTool,
+    DockerPullableDigestTool,
+    DockerSearchImagesTool,
+)
 from src.crewai.tools.utils.docker_registry_client import DockerRegistryClient, DockerRegistryAuth
 from src.crewai.tools.popeye_scan_tool import PopeyeScanTool
 from src.crewai.tools.file_version_history_tool import FileVersionHistoryTool, FileVersionDiffTool, FileVersionRestoreTool
+from src.crewai.tools.blackboard_tool import BlackboardTool
+from src.crewai.tools.stack_tool import StackOverflowSearchTool
+from src.crewai.tools.web_browser_tool import WebBrowserTool
 from src.version_control.versioning_utils import FileVersioning
+from src.crewai.devops_flow.blackboard.Blackboard import Blackboard
 
-from crewai_tools import DirectoryReadTool
-from crewai_tools import SeleniumScrapingTool
+from crewai_tools import BraveSearchTool
 
 
 _registry: Dict[str, Tuple[Callable[[], Any], bool]] = {}
 _cache:    Dict[str, Any] = {}
 
 def init_services():
+    # Register Blackboard as a singleton
+    register("blackboard", lambda: Blackboard(), singleton=True)
+    
+
     register("late_chunking_helper", 
     lambda: LateChunkingHelper(
         model_name=os.getenv("LATE_CHUNKING_MODEL_NAME"), 
@@ -117,11 +130,13 @@ def init_services():
         base_dir=os.getenv("TEMP_FILES_DIR")
     ), singleton=False)
 
-    # Register Docker Registry tools
+    # Register other services here as needed
+    register("kill_signal_event", lambda: threading.Event(), singleton=True) # Ensure threading is imported
+
     register("docker_registry_auth",
     lambda: DockerRegistryAuth(
         username=os.getenv("DOCKER_REGISTRY_USERNAME"),
-        password=os.getenv("DOCKER_REGISTRY_PASSWORD"),
+        password=os.getenv("DOCKER_REGISTRY_PAT"),
         registry=os.getenv("DOCKER_REGISTRY_URL", "registry-1.docker.io")
     ))
 
@@ -145,11 +160,44 @@ def init_services():
         registry_client=get("docker_registry_client")
     ), singleton=False)
     
+    register("docker_search_images_tool",
+    lambda: DockerSearchImagesTool(
+        registry_client=get("docker_registry_client")
+    ), singleton=False)
+    
     # Register Popeye scan tool
     register("popeye_scan",
     lambda: PopeyeScanTool(
         popeye_path=os.getenv("POPEYE_PATH", "popeye")
     ), singleton=False)
+    
+    # Register Blackboard as a singleton
+    register("blackboard", 
+    lambda: Blackboard(), 
+    singleton=True)
+    
+    # Register BlackboardTool with dependency injection
+    register("blackboard_tool",
+    lambda: BlackboardTool(blackboard=get("blackboard")),
+    singleton=False)
+
+    register("brave_search",
+    lambda: BraveSearchTool(n_results=20),
+    singleton=False)
+    
+    # Register StackOverflow Search Tool
+    register("stackoverflow_search",
+    lambda: StackOverflowSearchTool(
+        brave_search=get("brave_search"),
+    ),
+    singleton=False)
+
+    # Register Web Browser Tool
+    register("web_browser_tool",
+    lambda: WebBrowserTool(
+        brave_search=get("brave_search"),
+    ),
+    singleton=False)
 
 
 def register(name: str,
@@ -170,6 +218,3 @@ def get(name: str) -> Any:
 
 def reset_cache():                            # útil en tests
     _cache.clear()
-
-
-

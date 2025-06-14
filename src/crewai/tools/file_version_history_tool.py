@@ -11,7 +11,7 @@ import os
 import logging
 from pydantic import BaseModel, Field
 
-from langchain.tools import BaseTool
+from crewai.tools import BaseTool
 
 # Import FileVersioning utility
 from src.version_control.versioning_utils import FileVersioning, VersioningError

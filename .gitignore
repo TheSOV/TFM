@@ -177,3 +177,20 @@ cython_debug/
 # Knowledge
 knowledge/*
 !knowledge/.keepgit
+
+
+# mlartifact and mlruns and its content
+mlartifact/*
+mlruns/*
+traces.json
+
+# test pkl
+*.pkl
+
+# test txt
+*.txt
+
+# temp folder
+*temp
+
+

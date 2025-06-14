@@ -1,0 +1,160 @@
+popeye_scan:
+  description: >
+    **Goal**  
+    Run the **Popeye** diagnostic tool against the current **test** cluster and
+    produce a human-readable Markdown digest of all findings.
+
+    **Execution Workflow (async-safe)**
+
+    1. Invoke the Popeye action with default lint level, targeting the active
+       kube-context for the *test* cluster.  
+    2. Capture Popeye's report (scores, lints, warnings, errors).  
+    3. Boil the output down to a concise Markdown summary:  
+       • group findings by *Kind* → *Namespace* → *Resource*  
+       • include Popeye's severity (fatal / error / warn / info)  
+       • add a one-line human explanation of each item.  
+    4. Do **not** propose fixes; just report.
+
+    <blackboard>
+    {blackboard}
+    </blackboard>
+
+    <feedback>
+    {feedback}
+    </feedback>
+  expected_output: >
+    Well-structured Markdown listing every Popeye issue with:  
+    • Kind / Namespace / Name • Popeye severity • One-sentence explanation.
+  markdown: true
+  max_retries: 2
+  async_execution: true
+  agent: devops_tester   
+
+kubectl_status_check:
+  description: >
+    **Goal**  
+    Use raw **kubectl** commands to inspect cluster health and produce practical
+    guidance on reading pod and node status, events, and logs.
+
+    **Execution Workflow (async-safe)**
+
+    1. Run:  
+       • `kubectl get nodes -o wide` (node readiness, versions).  
+       • `kubectl get pods -A -o wide` (phase, restarts, node placement).  
+       • `kubectl describe pod <trouble-pod>` (events, probes, container state).  
+       • `kubectl logs <pod> [-c <ctr>] --tail=50` (quick triage).  
+    2. Summarise key indicators that signal trouble:  
+       • `CrashLoopBackOff`, `ImagePullBackOff`, probe failures, OOMKilled,  
+         `ErrImagePull`, `NodeNotReady`, etc.  
+    3. Provide **actionable tips**, not full solutions—e.g.,  
+       “If you see `ImagePullBackOff`, verify image repo creds or typo.”  
+    4. Consolidate everything into Markdown.
+
+    <blackboard>
+    {blackboard}
+    </blackboard>
+
+    <feedback>
+    {feedback}
+    </feedback>
+
+  expected_output: >
+    Markdown containing:  
+    • A brief health snapshot (nodes ready/not-ready, pod phases).  
+    • A table of problematic pods with last event reason.  
+    • Bullet-point advice on interpreting common kubectl signals and grabbing
+      useful logs.
+  markdown: true
+  max_retries: 3
+  async_execution: true
+  agent: devops_tester   
+
+aggregate_cluster_issues:
+  description: >
+    **Goal**  
+    Correlate the Popeye and kubectl findings, consult the researcher if needed,
+    and draft a **comprehensive issue list** with severity ratings.
+
+    **Severity Rules**
+
+    • **HIGH** - Blocks core functionality (apply failures, pods never *Ready*,
+      critical micro-service outage).  
+    • **MEDIUM** - Security or configuration risk that could hurt prod but does
+      not stop pods from becoming *Ready*.  
+    • **LOW** - Warnings, best-practice gaps, cosmetic lints.
+
+    **Deliverable**
+
+    For *each* issue provide:  
+    • **issue** - short technical label.  
+    • **problem_description** - why it matters (1-2 sentences).  
+    • **possible_manifest_file_path** - if traceable (`deployment-api.yaml`, etc.).  
+    • **severity** - High | Medium | Low.
+    • **observations** - Any additional observations or comments that might result useful to solve the issue.
+
+    **Execution Workflow**
+
+    1. Parse outputs of *popeye_scan* and *kubectl_status_check*.  
+    2. Merge duplicate or related items.  
+    3. If missing context, query **devops_researcher** once.  
+    4. Read the involved manifests and try to understand the context of the issue.
+    5. Produce a clean Markdown checklist of issues.
+
+    <blackboard>
+    {blackboard}
+    </blackboard>
+
+    <feedback>
+    {feedback}
+    </feedback>
+
+  expected_output: >
+    Comprehensive Markdown list of issues with: issue, problem_description, possible_manifest_file_path, severity, observations, and any other relevant information.
+  markdown: true
+  max_retries: 3
+  context:
+    - popeye_scan
+    - kubectl_status_check
+  agent: devops_tester
+
+issues_to_json:
+  description: >
+    **Goal**  
+    Transform the Markdown issue list into a strict JSON array for automated
+    consumption.
+
+    **Execution Workflow**
+
+    1. Parse each Markdown bullet from *aggregate_cluster_issues*.  
+    2. For every entry emit:  
+       `{ "issue": "...", "problem_description": "...", "possible_manifest_file_path": "...", "severity": "High" | "Medium" | "Low", "observations": "..." }`  
+    3. Preserve original order.  
+    4. Return **only** the JSON—no extra prose.
+
+  expected_output: >
+    A JSON array of issue objects with keys: issue, problem_description, possible_manifest_file_path, severity, observations.
+  max_retries: 3
+  context:
+    - aggregate_cluster_issues
+  agent: devops_tester
+
+log_cluster_issues:
+  description: >
+    **Goal**  
+    Produce a concise technical log capturing problem summary, applied analysis,
+    and expected next steps.
+
+    **Guidelines**
+
+    • No tool calls in this task.  
+    • 4-6 sentences maximum.
+  expected_output: >
+    Plain-text log (4-6 sentences) covering:  
+    • Number of issues found and severity mix.  
+    • Most critical blocker.  
+    • High-level advice for resolution path.  
+    • Confirmation that JSON export is ready for downstream automation.
+  max_retries: 2
+  context:
+    - issues_to_json
+  agent: devops_tester

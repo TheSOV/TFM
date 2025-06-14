@@ -1,0 +1,119 @@
+think_solution:
+  description: >
+   If `<feedback>` is present, address it first. Otherwise, proceed with the task.
+
+        **If `<feedback>` exists, resolve it first.**
+
+    **Goal — draft the minimal, functionally correct manifest**
+
+    During this step no file should be created or modified. This is a plan step.
+
+    1. **Analyse requirements** - read `<manifest>` metadata and blackboard
+       context; decide on the leanest valid `apiVersion`, `kind`, and `spec`
+       needed to hit Pod *Ready* state (omit hardening, autoscaling, pins).  
+    2. **Resolve gaps** - when any field is unclear (e.g., replica default,
+       selector-label mismatch, ConfigMap vs Secret choice) **query
+       _devops_researcher_ once**; otherwise pick the “smallest viable” default
+       and cite the source (official docs or CNCF guide).  
+    3. **Author manifest** - single-document YAML, canonical field order
+       (`kubectl explain` style). Embed concise
+       comments per best practice.  
+    4. **Report** - return the YAML plus: chosen defaults, researcher Q&A,
+       validation result.
+
+
+    **Context Blocks**
+
+    • `<manifest>` - Target resource metadata (kind, name, namespace, image, file_path).  
+    • `<blackboard>`- Current project state and artefacts.  
+    • `<feedback>`- If present, addressing the feedback takes top priority.
+
+
+    <manifest>
+
+    {manifest}
+
+    </manifest>
+
+
+    <blackboard>
+
+    {blackboard}
+
+    </blackboard>
+
+
+    <feedback>
+
+    {feedback}
+
+    </feedback>
+
+  markdown: true
+  expected_output: >
+    • Final YAML manifest (code block)  
+    • Justifications and defaults  
+    • Any researcher exchange  
+    • Local validation outcome
+  max_retries: 3
+  agent: devops_engineer
+
+write_solution:
+  description: >
+    **If `<feedback>` exists, resolve it first.**
+
+    **Goal — persist, lint, iterate until clean**
+
+    **Workflow**
+
+    1. **Edit / create** -  
+       `Action: edit_file  Action_Inputs: { ... }`  
+       (include rich `# comments` per Botkube/KodeKloud guidance).  
+    2. **Validate loop** -  
+       a. `Action: validate_manifest  { "security_scan": false }`  
+          - wraps kubeval + kubectl dry-run.  
+       b. If errors, patch & repeat; after **3 failures** or a new error
+          category, **escalate to _devops_researcher_** with the offending log.   
+    3. **Success** - final action *must* be a passing validation call.
+
+    <manifest>
+    {manifest}
+    </manifest>
+
+    <blackboard>
+    {blackboard}
+    </blackboard>
+
+    <feedback>
+    {feedback}
+    </feedback>
+
+  expected_output: >
+    Ordered tool calls ending with:  
+    `Action: edit_file  Action_Inputs: { ... }`  
+    `Action: validate_manifest  Action_Inputs: { "security_scan": false }`  
+    Validation must succeed.
+
+    **Important**: The creattion of the YAML file is **ABSOLUTLY MANDATORY**, otherwise, task will fail.
+  max_retries: 3
+  agent: devops_engineer
+
+
+log_solution:
+  description: >
+    **Goal — capture the remediation timeline**
+
+    Summarise, in 4-6 technical sentences (no tools), the journey from error to
+    clean manifest:
+
+    • Root-cause & symptom  
+    • Key YAML edits  
+    • Validation success  
+    • Any open caveats / follow-ups (e.g., will add HPA later)
+  expected_output: >
+    Plain-text paragraph (4-6 sentences) as described.
+  max_retries: 3
+  context:
+   - think_solution
+   - write_solution
+  agent: devops_engineer

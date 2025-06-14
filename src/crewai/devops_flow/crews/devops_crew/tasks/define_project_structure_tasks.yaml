@@ -1,0 +1,76 @@
+preliminary_structure:
+  description: >
+    **Goal**  
+    Create a *manifest blueprint* for the single environment.  
+    For every Kubernetes YAML file to be authored, list:
+      • its repository-relative path (file_path)
+      • the namespace to which the element will belong (namespace)
+      • a short paragraph with the description of the manifest's purpose (description).
+
+    **Methodology**
+
+    1. Consolidate inputs from the blackboard, and the
+       previous tasks to identify all workloads and supporting resources
+       required for a functional test deployment.  
+    2. Adopt a simple directory layout. You can use a subdirectory for each workload/resource/other_criteria
+    or all files in the same directory, at your choice depending of the complexity of 
+    the project; overlays are intentionally omitted.  
+    3. For each workload, decide the *minimal* manifest set needed to reach
+       **Ready** (e.g., Deployment, Service, ConfigMap, Secret, PVC, Ingress).
+       Skip observability, CI/CD artefacts, and advanced elements that 
+       are not required for a functional test deployment.  
+    4. Represent **each manifest as an independent JSON object**—do *not* merge
+       multiple resources.  
+    5. Record the data points (path, namespace, description) for each
+       manifest.  
+    6. Where information is missing, consult **devops_researcher** or apply the
+       “smallest viable production default,” justifying the fallback in one phrase.
+
+    <blackboard>
+    {blackboard}
+    </blackboard>
+
+    <feedback>
+    {feedback}
+    </feedback>
+  expected_output: >
+    Narrative prose or structured Markdown—**no YAML/JSON/code blocks**—listing
+    for *each* manifest:  
+    • file path  • namespace   • description.  
+    Use concrete, non-generic wording; omit tags, registries, versions, and
+    implementation minutiae. Another senior engineer should be able to model the
+    cluster without further clarification.
+  markdown: true
+  max_retries: 3
+  agent: devops_researcher
+
+structured_preliminary_structure:
+  description: >
+    **Goal**  
+    Produce the *authoritative manifest index* for the test environment in
+    machine-readable form.
+
+    **Methodology**
+
+    1. Transform the vetted output of **preliminary_structure** into a strict
+       JSON data set.  
+    2. Ensure that all the required information is present to model the cluster.
+    3. Represent **each manifest as an independent JSON object**—do *not* merge
+       multiple resources.  
+    4. Return the JSON array—and nothing else.
+
+    <blackboard>
+    {blackboard}
+    </blackboard>
+
+    <feedback>
+    {feedback}
+    </feedback>
+  expected_output: >
+    A single JSON array where every element has the following keys:  
+    • **file_path** (string) repository-relative YAML file name  
+    • **namespace** (string) Kubernetes namespace  
+    • **description** (string) succinct description  
+
+  max_retries: 3
+  agent: devops_researcher

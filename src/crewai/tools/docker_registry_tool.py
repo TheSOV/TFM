@@ -1,6 +1,6 @@
 import json
 import logging
-from typing import Type, Dict, Any
+from typing import Type, Dict, Any, List, Optional
 from crewai.tools import BaseTool
 from pydantic import BaseModel, Field, PrivateAttr
 
@@ -107,3 +107,75 @@ class DockerPullableDigestTool(BaseTool):
             error_msg = f"Error getting pullable digest for {repository}:{tag}: {str(e)}"
             logger.error(error_msg)
             return error_msg
+
+
+# ---------------------------------------------------------------------------
+# NEW: Search images in Docker Hub via local Docker CLI
+# ---------------------------------------------------------------------------
+
+class SearchDockerImagesInput(BaseModel):
+    """Input schema for searching Docker Hub images using the local Docker CLI."""
+
+    query: str = Field(..., description="Search term, e.g. 'redis'.")
+    limit: int = Field(25, description="Maximum number of results (1-100).")
+    official_only: Optional[bool] = Field(
+        None,
+        description="If True, return only official images; False, only non-official; None, no filter.",
+    )
+    verified_only: Optional[bool] = Field(
+        None,
+        description="Filter by verified publisher flag similarly to *official_only*.",
+    )
+    sort_by_stars: bool = Field(
+        True,
+        description="Sort results descending by star count (default True).",
+    )
+
+
+class DockerSearchImagesTool(BaseTool):
+    """Search Docker Hub images through the local Docker CLI (`docker search`).
+
+    Unlike the manifest/detail tools that hit the Registry HTTP API, this tool
+    returns a list of dictionaries with keys:
+
+    ``full_name``: repository name (e.g. ``redis`` or ``bitnami/redis``)
+    ``description``: short description
+    ``official``: bool flag for official images
+    ``verified``: bool flag for verified publishers (if available)
+    ``automated``: bool flag for automated builds
+    ``stars``: star count (int)
+    """
+
+    name: str = "search_docker_images"
+    description: str = (
+        "Search Docker Hub images using the local Docker CLI. Supports limit, "
+        "official/verified filters and star-count sorting. Returns a JSON list "
+        "of dictionaries with full_name, description, official, verified, "
+        "automated and stars fields. Official images are located at library/name_of_image, and will have "
+        "official=True and verified=False. Verified images are has custom repo name and will have "
+        "verified=True and official=False."
+    )
+    args_schema: Type[BaseModel] = SearchDockerImagesInput
+
+    _registry_client: DockerRegistryClient = PrivateAttr()
+
+    def __init__(self, registry_client: DockerRegistryClient, **kwargs):
+        super().__init__(**kwargs)
+        self._registry_client = registry_client
+
+    def _run(
+        self,
+        query: str,
+        limit: int = 25,
+        official_only: Optional[bool] = None,
+        verified_only: Optional[bool] = None,
+        sort_by_stars: bool = True,
+    ) -> List[Dict[str, Any]]:
+        results = self._registry_client.search_images_cli(
+            query=query,
+            limit=limit,
+            official_only=official_only,
+            verified_only=verified_only,
+            sort_by_stars=sort_by_stars,
+        )
+        return results

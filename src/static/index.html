@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DevopsFlow</title>
+  
+  <!-- Quasar CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/quasar@2.11.6/dist/quasar.min.css" rel="stylesheet" type="text/css">
+  
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/@mdi/font@6.9.96/css/materialdesignicons.min.css" rel="stylesheet">
+  
+  <style>
+    :root {
+      --q-primary: #1976D2;
+      --q-secondary: #26A69A;
+      --q-accent: #9C27B0;
+      --q-dark: #1D1D1D;
+      --q-positive: #21BA45;
+      --q-negative: #C10015;
+      --q-info: #31CCEC;
+      --q-warning: #F2C037;
+    }
+    
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: 'Roboto', sans-serif;
+      background-color: #f5f5f5;
+      color: #333;
+    }
+    
+    #q-app {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    
+    .page-container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+      width: 100%;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+    
+    .card-container {
+      max-width: 800px;
+      margin: 0 auto;
+      width: 100%;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+    
+    .form-actions {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+    
+    .blackboard-content {
+      padding: 20px;
+      background: #f8f9fa;
+      border-radius: 4px;
+      white-space: pre-wrap;
+      max-height: 70vh;
+      overflow-y: auto;
+      font-family: 'Roboto Mono', monospace;
+      font-size: 14px;
+      line-height: 1.5;
+      margin: 0;
+    }
+    
+    /* Fade transition for route changes */
+    .fade-enter-active,
+    .fade-leave-active {
+      transition: opacity 0.2s ease;
+    }
+    
+    .fade-enter-from,
+    .fade-leave-to {
+      opacity: 0;
+    }
+    
+    @media (max-width: 600px) {
+      .page-container {
+        padding: 10px;
+      }
+      
+      .form-actions {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      
+      .form-actions .q-btn {
+        width: 100%;
+        margin-bottom: 8px;
+      }
+      
+      .form-actions .q-space {
+        display: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="q-app">
+    <q-layout view="hHh Lpr lFf">
+      <q-header elevated class="bg-primary text-white">
+        <q-toolbar>
+          <q-toolbar-title class="text-h5 text-weight-bold">
+            <q-icon name="mdi-robot" class="q-mr-sm" />
+            DevopsFlow
+          </q-toolbar-title>
+          <q-space />
+          <q-tabs v-model="currentTab" dense active-color="white" indicator-color="yellow-6" align="right">
+            <q-route-tab 
+              name="home" 
+              to="/" 
+              label="Home" 
+              icon="home" 
+              class="text-white"
+            />
+            <q-route-tab 
+              name="blackboard" 
+              to="/blackboard" 
+              label="Blackboard" 
+              icon="description"
+              class="text-white"
+            />
+          </q-tabs>
+        </q-toolbar>
+      </q-header>
+      
+      <q-page-container>
+        <router-view v-slot="{ Component }">
+          <transition name="fade" mode="out-in">
+            <component :is="Component" />
+          </transition>
+        </router-view>
+      </q-page-container>
+
+      <q-page-container>
+        <router-view />
+      </q-page-container>
+    </q-layout>
+  </div>
+
+  <!-- Import map for module resolution -->
+  <script type="importmap">
+    {
+      "imports": {
+        "vue": "https://unpkg.com/vue@3.2.47/dist/vue.esm-browser.prod.js",
+        "vue-router": "https://unpkg.com/vue-router@4.1.6/dist/vue-router.esm-browser.prod.js",
+        "quasar": "https://unpkg.com/quasar@2.11.6/dist/quasar.esm.prod.js",
+        "axios": "https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js",
+        "@/": "/static/js/"
+      }
+    }
+  </script>
+  
+  <!-- Load our app as an ES module -->
+  <script type="module" src="/static/js/app.js"></script>
+  
+  <!-- Fallback for browsers without module support -->
+  <script nomodule>
+    document.body.innerHTML = `
+      <div style="font-family: 'Roboto', sans-serif; max-width: 800px; margin: 2rem auto; padding: 2rem; text-align: center;">
+        <h1>Browser Not Supported</h1>
+        <p>This application requires a modern browser that supports JavaScript modules.</p>
+        <p>Please use the latest version of Chrome, Firefox, Safari, or Edge.</p>
+      </div>
+    `;
+  </script>
+</body>
+</html>

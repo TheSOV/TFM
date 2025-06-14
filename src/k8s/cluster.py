@@ -1,4 +1,5 @@
 from kubernetes import client, config, utils
+from kubernetes.client.rest import ApiException
 from pathlib import Path
 import os
 
@@ -50,3 +51,103 @@ class ClusterManager:
         except subprocess.CalledProcessError as e:
             error_msg = f"Failed to delete resources: {e.stderr}"
             raise RuntimeError(error_msg) from e
+
+    def create_namespace(self, namespace: str) -> None:
+        """Create a Kubernetes namespace if it does not already exist.
+
+        Parameters
+        ----------
+        namespace : str
+            Name of the namespace to create.
+        """
+        if not namespace:
+            raise ValueError("Namespace name must be a non-empty string")
+
+        v1 = client.CoreV1Api(self.k8s_client)
+
+        try:
+            v1.read_namespace(name=namespace)
+            # Namespace exists – nothing to do
+            return
+        except ApiException as exc:
+            if exc.status != 404:
+                # Unexpected error
+                raise
+
+        # Namespace does not exist – create it
+        body = client.V1Namespace(
+            metadata=client.V1ObjectMeta(name=namespace)
+        )
+        v1.create_namespace(body=body)
+
+    def create_namespaces(self, namespaces: list[str]) -> None:
+        """Create multiple namespaces if missing.
+
+        Parameters
+        ----------
+        namespaces : list[str]
+            List of namespace names to ensure exist.
+        """
+        for ns in namespaces:
+            try:
+                self.create_namespace(ns)
+            except Exception as exc:
+                # Log and continue with others
+                import logging
+                logging.getLogger(__name__).error(
+                    "Failed to create namespace %s: %s", ns, exc
+                )
+
+    def create_from_directory(self) -> str:
+        """
+        Recursively apply all YAML files in a directory and its subdirectories using kubectl CLI.
+
+        Args:
+            dir_path: Relative path to the directory from TEMP_FILES_DIR
+        Returns:
+            str: The stdout from kubectl apply
+        Raises:
+            RuntimeError: If kubectl apply fails
+        """
+        import subprocess
+        import logging
+
+        base_dir = Path(self.base_dir)
+        try:
+            result = subprocess.run(
+                ["kubectl", "apply", "-R", "-f", str(base_dir)],
+                capture_output=True,
+                text=True,
+                check=True
+            )
+            return result.stdout
+        except subprocess.CalledProcessError as e:
+            logging.getLogger(__name__).error(f"kubectl apply failed: {e.stderr}")
+            raise RuntimeError(f"kubectl apply failed: {e.stderr}")
+
+    def delete_from_directory(self) -> str:
+        """
+        Recursively delete all YAML-defined resources in a directory and its subdirectories using kubectl CLI.
+
+        Args:
+            dir_path: Relative path to the directory from TEMP_FILES_DIR
+        Returns:
+            str: The stdout from kubectl delete
+        Raises:
+            RuntimeError: If kubectl delete fails
+        """
+        import subprocess
+        import logging
+
+        base_dir = Path(self.base_dir)
+        try:
+            result = subprocess.run(
+                ["kubectl", "delete", "-R", "-f", str(base_dir)],
+                capture_output=True,
+                text=True,
+                check=True
+            )
+            return result.stdout
+        except subprocess.CalledProcessError as e:
+            logging.getLogger(__name__).error(f"kubectl delete failed: {e.stderr}")
+            raise RuntimeError(f"kubectl delete failed: {e.stderr}")
