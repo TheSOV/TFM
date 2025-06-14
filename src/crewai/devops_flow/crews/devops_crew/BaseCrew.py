@@ -68,9 +68,7 @@ class BaseCrew:
                 services.get("rag"),
                 services.get("stackoverflow_search"),
                 services.get("web_browser_tool"),
-                services.get("docker_manifest_tool"),
-                services.get("docker_image_details_tool"),
-                services.get("docker_pullable_digest_tool"),
+                services.get("docker_image_analysis_tool"),
                 services.get("docker_search_images_tool")
             ]
         )

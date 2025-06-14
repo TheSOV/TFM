@@ -90,7 +90,7 @@ class RagTool(BaseTool):
         
         The target audience of your report is a group devops working on a kubernetes cluster.
 
-        Your task is to answer the question: to provide an answer to the question in a comprehensive report in markdown format, and additionally mentions other relevant information that might be related directly or indirectly.
+        Your task is to answer the question: to provide a concise, precise and clear answer to the question in markdown format. Ensure to clearly answer the question and not generate an extensive report. Additionally mention (only mention) other relevant aspects that might be related directly or indirectly, and might be relevant to the question.
 
         In case there is code in the documents, you should provide the code in the report.
         

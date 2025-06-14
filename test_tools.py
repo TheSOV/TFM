@@ -1,14 +1,24 @@
-from src.crewai.tools.web_browser_tool import WebBrowserTool
-
 from src.services_registry.services import init_services, get
 
 init_services()
 
-brave_search_tool = get("brave_search")
+web_browser_tool = get("web_browser_tool")
+rag_tool = get("rag")
 
 if __name__ == "__main__":
-    tool = WebBrowserTool(brave_search_tool)
-    result = tool._run(
+    result_1 = web_browser_tool._run(
         query="what are the recommended steps ton configure a nginx server in kubernetes?",
     )
-    print(result)
+    result_2 = rag_tool._run(
+        query="what are the recommended steps ton configure a nginx server in kubernetes?",
+        collection="kubernetes_fundamentals",
+    )
+
+    print("\n\n\n")
+    print(10*"#" + "web browser tool" + 10*"#")
+    print("\n\n\n")
+    print(result_1)
+    print("\n\n\n")
+    print(10*"#" + "rag tool" + 10*"#")
+    print("\n\n\n")
+    print(result_2)

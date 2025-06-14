@@ -156,8 +156,8 @@ class WebBrowserTool(BaseTool):
         RAW SEARCH OUTPUT:\n{raw_results}
 
         Respond with a JSON array where each object contains:
-          - "url": the page URL
-          - "reason": short justification (one sentence)
+            - "reason": short justification (one sentence)
+            - "url": the page URL
 
         Example response:\n{json_example}
 
@@ -217,10 +217,11 @@ class WebBrowserTool(BaseTool):
         SOURCE DOCUMENTS (mapping URL -> content):\n{json.dumps(documents)[:8000]}  # limit to remain within context
 
         TASK:
-          • Answer the question thoroughly.
+          • Answer the question concisely, in a clear and precise way.
           • Reference insights from the documents (cite URLs).
-          • Highlight related topics that appear in the sources.
-          • Format the output as **Markdown** with clear headings, code blocks, etc.
+          • Mention (only mention) related topics that might be relevant to the question.
+          • Format the output as **Markdown** with clear headings, code blocks, etc. Do not
+          create an extensive report.
 
         If the section <feedback> is provided, it will contain information about an error during a previous execution of the task.
         <feedback>

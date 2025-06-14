@@ -10,13 +10,7 @@ from src.crewai.tools.file_edit_tool import FileCreateTool, FileEditTool, FileRe
 from src.crewai.tools.config_validator import ConfigValidatorTool
 from src.crewai.tools.kubectl_tool import KubectlTool
 from src.crewai.tools.rag_tool import RagTool
-from src.crewai.tools.docker_registry_tool import (
-    DockerManifestTool,
-    DockerImageDetailsTool,
-    DockerPullableDigestTool,
-    DockerSearchImagesTool,
-)
-from src.crewai.tools.utils.docker_registry_client import DockerRegistryClient, DockerRegistryAuth
+from src.crewai.tools.docker_tool import DockerSearchImagesTool, DockerImageAnalysisTool
 from src.crewai.tools.popeye_scan_tool import PopeyeScanTool
 from src.crewai.tools.file_version_history_tool import FileVersionHistoryTool, FileVersionDiffTool, FileVersionRestoreTool
 from src.crewai.tools.blackboard_tool import BlackboardTool
@@ -133,37 +127,13 @@ def init_services():
     # Register other services here as needed
     register("kill_signal_event", lambda: threading.Event(), singleton=True) # Ensure threading is imported
 
-    register("docker_registry_auth",
-    lambda: DockerRegistryAuth(
-        username=os.getenv("DOCKER_REGISTRY_USERNAME"),
-        password=os.getenv("DOCKER_REGISTRY_PAT"),
-        registry=os.getenv("DOCKER_REGISTRY_URL", "registry-1.docker.io")
-    ))
 
-    register("docker_registry_client",
-    lambda: DockerRegistryClient(
-        auth=get("docker_registry_auth")
-    ))
+    register("docker_image_analysis_tool", 
+    lambda: DockerImageAnalysisTool(), singleton=False)
 
-    register("docker_manifest_tool",
-    lambda: DockerManifestTool(
-        registry_client=get("docker_registry_client")
-    ), singleton=False)
-
-    register("docker_image_details_tool",
-    lambda: DockerImageDetailsTool(
-        registry_client=get("docker_registry_client")
-    ), singleton=False)
-    
-    register("docker_pullable_digest_tool",
-    lambda: DockerPullableDigestTool(
-        registry_client=get("docker_registry_client")
-    ), singleton=False)
     
     register("docker_search_images_tool",
-    lambda: DockerSearchImagesTool(
-        registry_client=get("docker_registry_client")
-    ), singleton=False)
+    lambda: DockerSearchImagesTool(), singleton=False)
     
     # Register Popeye scan tool
     register("popeye_scan",
