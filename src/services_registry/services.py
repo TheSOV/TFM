@@ -87,13 +87,15 @@ def init_services():
     register("file_create", 
     lambda: FileCreateTool(
         base_dir=os.getenv("TEMP_FILES_DIR"),
-        versioning=get("file_versioning")
+        versioning=get("file_versioning"),
+        enable_versioning=True
     ), singleton=False)
 
     register("file_edit", 
     lambda: FileEditTool(
         base_dir=os.getenv("TEMP_FILES_DIR"),
-        versioning=get("file_versioning")
+        versioning=get("file_versioning"),
+        enable_versioning=True
     ), singleton=False)
 
     register("file_read", 

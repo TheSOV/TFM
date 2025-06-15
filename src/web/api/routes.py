@@ -77,7 +77,7 @@ def get_blackboard() -> Dict[str, Any]:
     """
     try:
         blackboard = services.get("blackboard")
-        content = blackboard.export_blackboard()
+        content = blackboard.model_dump()
         
         return {
             'status': 'success',

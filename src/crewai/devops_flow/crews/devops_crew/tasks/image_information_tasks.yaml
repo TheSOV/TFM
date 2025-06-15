@@ -9,17 +9,25 @@ get_image_information:
 
     **Methodology**
 
-    1. Get the image manifest with the get_docker_manifest tool.
-    2. Then use the get_docker_image_details tool to get the image details.
-    3. Finally, use the get_docker_pullable_digest tool to get the pullable digest.
+    1. Research, based on the requirements which repo, version and tag to use. This is a preliminary
+    investigation. You can use the web_browser_tool and search_docker_images tool to get 
+    general information about the image.
+    2. Select the best image based on the requirements and use the get_docker_image_details 
+    tool to get the image details.
+    3. Make one search to get useful tips, typical problems and solutions while using that image 
+    with kubernetes.
     4. Return the JSON object—and nothing else.
-
-    In any step, if there is missing information about the image, or the repo is 
-    unknown, use the search_docker_images tool to get the image information.
 
     Remember that official images are always under the library/ namespace and are preferred. (official=True, verified=False)
     Verified images are always under a custom namespace and are preferred after official images. (official=False, verified=True)
-    Automated images are always under a custom namespace and are preferred after verified images. (official=False, verified=False)
+    Non-verified and non-official images are always under a custom namespace and are preferred after verified images. (official=False, verified=False)
+
+    <Important>
+       You can use only images from DockerHub. If the user requests a specific image, 
+       you can use it, but if the image is not available, you must use an alternative 
+       image from DockerHub, searching with the available web and search tools. 
+       It is totally forbidden to use images from other repositories.
+    </Important>
 
     <blackboard>
     {blackboard}

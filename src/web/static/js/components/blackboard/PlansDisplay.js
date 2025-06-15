@@ -26,17 +26,32 @@ window.PlansDisplay = {
   },
   computed: {
     formattedPlanContent() {
-      if (this.planContent) {
+      if (this.planContent && typeof this.planContent === 'string') {
+        let contentToParse = this.planContent;
+        const trimmedContent = contentToParse.trim();
+        // Check if the entire content is wrapped in triple backticks
+        if (trimmedContent.startsWith('```') && trimmedContent.endsWith('```')) {
+          // Attempt to remove the outer triple backticks
+          // Only do this if it seems to be a wrapper for the whole content,
+          // not a legit code block that happens to be at the start/end of a larger document.
+          // A simple heuristic: check if there's another ``` inside after the first line and before the last line.
+          // For now, a simpler removal if it's the common case of the whole thing being a block:
+          const lines = trimmedContent.split('\n');
+          if (lines.length > 1) { // Ensure it's not just '```code```'
+             contentToParse = trimmedContent.substring(3, trimmedContent.length - 3).trim();
+          }
+        }
+
         if (typeof window.showdown !== 'undefined' && typeof window.showdown.Converter === 'function') {
           console.log('PlansDisplay.js: Using showdown for Markdown.');
           const converter = new showdown.Converter();
           return converter.makeHtml(this.planContent);
-        } else if (typeof window.marked === 'function') {
-          console.log('PlansDisplay.js: Using marked for Markdown (fallback).');
-          return marked(this.planContent);
+        } else if (typeof window.marked === 'object' && typeof window.marked.parse === 'function') {
+          console.log('PlansDisplay.js: Using marked.parse for Markdown.');
+          return window.marked.parse(contentToParse);
         } else {
           console.warn('PlansDisplay.js: No Markdown library (showdown or marked) available. Displaying raw plan content.');
-          return `<pre style="white-space: pre-wrap; word-wrap: break-word;">${this.planContent}</pre>`;
+          return `<pre style="white-space: pre-wrap; word-wrap: break-word;">${contentToParse}</pre>`;
         }
       }
       return '';

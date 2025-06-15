@@ -1,7 +1,23 @@
+import datetime
+from typing import Any
 from pydantic import BaseModel, Field
 from typing import Literal
 
 class Record(BaseModel):
+    """Representation of a single action or milestone achieved by any of the
+    DevOps agents.
+
+    Attributes:
+        agent: Role of the agent that generated the record. Accepted values are
+            'devops_engineer', 'devops_researcher' and 'devops_tester'.
+        task_name: Short identifier of the task completed.
+        task_description: Human-readable explanation of what was done. It should
+            contain enough context so that other agents (or a human) can
+            understand what happened without having to dig into the logs.
+        created_at: Timestamp recorded as a ``datetime`` object (UTC). When the
+            model is serialised with ``mode="json"``, it is automatically
+            converted to an ISO string thanks to the custom ``json_encoders``.
+    """
     agent: Literal['devops_engineer', 'devops_researcher', 'devops_tester'] = Field(
         ..., 
         description="Agent which completed the task"
@@ -14,4 +30,7 @@ class Record(BaseModel):
         ...,
         description="A description of the task completed, with important information which can be used to complete the next tasks or to debug any failure."
     )
-    
+    created_at: str = Field(
+        default_factory=lambda: datetime.datetime.now(datetime.timezone.utc).strftime("%H:%M:%S"),
+        description="Time when the record was created (HH:MM:SS UTC)"
+    )

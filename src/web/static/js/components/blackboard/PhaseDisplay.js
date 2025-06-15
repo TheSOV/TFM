@@ -12,10 +12,6 @@ window.PhaseDisplay = {
     iteration: {
       type: Number,
       default: 0
-    },
-    projectName: {
-      type: String,
-      default: 'N/A'
     }
   },
   template: `
@@ -34,8 +30,7 @@ window.PhaseDisplay = {
               <q-icon name="sync" :class="{'rotate-icon': phase && phase.toLowerCase().includes('ing')}" />
             </q-item-section>
             <q-item-section>
-              <q-item-label caption>Current Phase</q-item-label>
-              <q-item-label>{{ phase || 'N/A' }}</q-item-label>
+              <q-item-label><span class="text-weight-medium">Current Phase:</span> {{ phase || 'N/A' }}</q-item-label>
             </q-item-section>
           </q-item>
 
@@ -44,18 +39,7 @@ window.PhaseDisplay = {
               <q-icon name="loop" />
             </q-item-section>
             <q-item-section>
-              <q-item-label caption>Iteration</q-item-label>
-              <q-item-label>{{ iteration }}</q-item-label>
-            </q-item-section>
-          </q-item>
-
-          <q-item>
-            <q-item-section avatar>
-              <q-icon name="label_important" />
-            </q-item-section>
-            <q-item-section>
-              <q-item-label caption>Project</q-item-label>
-              <q-item-label class="ellipsis">{{ projectName || 'N/A' }}</q-item-label>
+              <q-item-label><span class="text-weight-medium">Current Iteration:</span> {{ iteration }}</q-item-label>
             </q-item-section>
           </q-item>
         </q-list>

@@ -1,7 +1,7 @@
 from crewai import Crew, Task, Process
 from crewai.project import CrewBase, task, crew
 from src.crewai.devops_flow.crews.devops_crew.BaseCrew import BaseCrew
-from src.crewai.devops_flow.crews.devops_crew.outputs import outputs
+from src.crewai.devops_flow.blackboard.utils.Image import Image
 
 @CrewBase
 class ImageInformationCrew(BaseCrew):
@@ -12,7 +12,7 @@ class ImageInformationCrew(BaseCrew):
     def get_image_information(self) -> Task:
         return Task(
             config=self.tasks_config['get_image_information'], # type: ignore[index]
-            output_json=outputs.Images
+            output_json=Image
         )
 
     

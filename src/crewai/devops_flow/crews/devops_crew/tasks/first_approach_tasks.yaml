@@ -7,6 +7,7 @@ think_solution:
     **Goal — draft the minimal, functionally correct manifest**
 
     During this step no file should be created or modified. This is a plan step.
+    Follow the indications of the basic plan in the blackboard.
 
     1. **Analyse requirements** - read `<manifest>` metadata and blackboard
        context; decide on the leanest valid `apiVersion`, `kind`, and `spec`
@@ -16,8 +17,7 @@ think_solution:
        _devops_researcher_ once**; otherwise pick the “smallest viable” default
        and cite the source (official docs or CNCF guide).  
     3. **Author manifest** - single-document YAML, canonical field order
-       (`kubectl explain` style). Embed concise
-       comments per best practice.  
+       (`kubectl explain` style). Embed concise comments per best practice.  
     4. **Report** - return the YAML plus: chosen defaults, researcher Q&A,
        validation result.
 
@@ -101,17 +101,17 @@ write_solution:
 
 log_solution:
   description: >
-    **Goal — capture the remediation timeline**
+    **Goal — create a record**
 
-    Summarise, in 4-6 technical sentences (no tools), the journey from error to
-    clean manifest:
+    Summarise, in no more that 50 words, the actions taken in the previous step,
+    which is mentioned as context.
 
     • Root-cause & symptom  
     • Key YAML edits  
     • Validation success  
     • Any open caveats / follow-ups (e.g., will add HPA later)
   expected_output: >
-    Plain-text paragraph (4-6 sentences) as described.
+    Plain-text paragraph (4-6 sentences) as described, en 3 person, past tense, professional tone.
   max_retries: 3
   context:
    - think_solution

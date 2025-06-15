@@ -15,6 +15,15 @@ popeye_scan:
        • add a one-line human explanation of each item.  
     4. Do **not** propose fixes; just report.
 
+    Classify the issues using the following severity rules:
+
+    • **HIGH** - Blocks core functionality (apply failures, pods never *Ready*,
+      critical micro-service outage).  
+    • **MEDIUM** - Security or configuration risk that could hurt prod but does
+      not stop pods from becoming *Ready*.  
+    • **LOW** - Warnings, best-practice gaps, cosmetic lints.
+
+
     <blackboard>
     {blackboard}
     </blackboard>
@@ -23,9 +32,8 @@ popeye_scan:
     {feedback}
     </feedback>
   expected_output: >
-    Well-structured Markdown listing every Popeye issue with:  
+    Well-structured summary of Popeye issues in Markdown listing every Popeye issue with:  
     • Kind / Namespace / Name • Popeye severity • One-sentence explanation.
-  markdown: true
   max_retries: 2
   async_execution: true
   agent: devops_tester   
@@ -38,17 +46,77 @@ kubectl_status_check:
 
     **Execution Workflow (async-safe)**
 
-    1. Run:  
-       • `kubectl get nodes -o wide` (node readiness, versions).  
-       • `kubectl get pods -A -o wide` (phase, restarts, node placement).  
-       • `kubectl describe pod <trouble-pod>` (events, probes, container state).  
-       • `kubectl logs <pod> [-c <ctr>] --tail=50` (quick triage).  
-    2. Summarise key indicators that signal trouble:  
-       • `CrashLoopBackOff`, `ImagePullBackOff`, probe failures, OOMKilled,  
-         `ErrImagePull`, `NodeNotReady`, etc.  
-    3. Provide **actionable tips**, not full solutions—e.g.,  
-       “If you see `ImagePullBackOff`, verify image repo creds or typo.”  
-    4. Consolidate everything into Markdown.
+    You can run commands like the following, at your choice, until you are convinced 
+    you have enough information to provide a concise health snapshot:
+
+
+    • kubectl get <resource> -A -o wide → check status, labels, node placement, IPs, etc.
+    Valid <resource> examples:
+
+        pod → phase, restarts, node
+
+        svc → type, clusterIP, external IP, ports
+
+        deploy → replicas, up-to-date, available
+
+        daemonset, statefulset, job, cronjob → scheduling and rollout info
+
+        ingress → hosts, TLS, load balancer address
+
+        pvc, pv → status (Bound, Pending), capacity, access modes
+
+        node → version, readiness, taints, internal IPs
+
+    • kubectl describe <resource> <name> → detailed state, events, recent failures
+    Examples:
+
+        describe pod → probe failures, termination reasons
+
+        describe node → pressure, allocatable resources, conditions
+
+        describe svc → selector, port mapping, endpoints
+
+        describe pvc → claim status, mount errors
+
+        describe deploy → rollout history, selector, conditions
+
+    • kubectl explain <resource>[.<field>] → understand object structure and valid fields
+    Examples:
+
+        explain pod.spec.containers
+
+        explain deployment.spec.strategy.rollingUpdate
+
+        explain node.status.conditions
+
+    • kubectl get events --sort-by='.lastTimestamp' → cluster-level recent warnings and errors
+
+    Summarise key indicators that signal trouble:
+    • CrashLoopBackOff, ImagePullBackOff, OOMKilled, CreateContainerConfigError
+    • NodeNotReady, MemoryPressure, DiskPressure, NetworkUnavailable
+    • PVC Pending, FailedMount, ResizePending
+    • ENDPOINTS <none> in service
+    • Ingress stuck without IP or returns 404/default backend
+
+    Provide actionable tips, not full solutions—e.g.:
+    • ImagePullBackOff → check image name/tag, registry credentials, DNS resolution
+    • PVC Pending → verify storage class, capacity, node affinity
+    • 0/3 READY in a deploy → look at pod events (probe failures, crash loops)
+    • Ingress has no IP → check cloud controller, annotations, and LB quotas
+    • DiskPressure → clean up disk or reschedule pods to healthy nodes
+    • Service endpoints missing → check pod labels match service selector
+
+    Classify the issues using the following severity rules:
+
+    • **HIGH** - Blocks core functionality (apply failures, pods never *Ready*,
+      critical micro-service outage).  
+    • **MEDIUM** - Security or configuration risk that could hurt prod but does
+      not stop pods from becoming *Ready*.  
+    • **LOW** - Warnings, best-practice gaps, cosmetic lints.
+
+    Execute commands for ALL the available resources in the cluster.
+
+    Consolidate everything into Markdown.
 
     <blackboard>
     {blackboard}
@@ -60,11 +128,12 @@ kubectl_status_check:
 
   expected_output: >
     Markdown containing:  
-    • A brief health snapshot (nodes ready/not-ready, pod phases).  
-    • A table of problematic pods with last event reason.  
-    • Bullet-point advice on interpreting common kubectl signals and grabbing
-      useful logs.
-  markdown: true
+    • A health snapshot (status for all the resources).  
+    • A summary of the causes of non-ready nodes and non-ready pods or other issues.
+    • Brief comments
+    • No need to include commands, or other generic information, only health snapshot and issues summary.
+
+    Include relevant information to help the devops engineer to understand the issues and take action.
   max_retries: 3
   async_execution: true
   agent: devops_tester   
@@ -100,17 +169,17 @@ aggregate_cluster_issues:
     4. Read the involved manifests and try to understand the context of the issue.
     5. Produce a clean Markdown checklist of issues.
 
-    <blackboard>
-    {blackboard}
-    </blackboard>
+    Focus on the most critical issues first.
 
     <feedback>
     {feedback}
     </feedback>
 
   expected_output: >
-    Comprehensive Markdown list of issues with: issue, problem_description, possible_manifest_file_path, severity, observations, and any other relevant information.
-  markdown: true
+    Comprehensive Markdown list of issues with: issue, problem_description, 
+    possible_manifest_file_path, severity, observations, and any other relevant information.
+
+    Include relevant information to help the devops engineer to understand the issues and take action.
   max_retries: 3
   context:
     - popeye_scan
@@ -131,29 +200,29 @@ issues_to_json:
     3. Preserve original order.  
     4. Return **only** the JSON—no extra prose.
 
+    Focus on the most critical issues first.
+
   expected_output: >
-    A JSON array of issue objects with keys: issue, problem_description, possible_manifest_file_path, severity, observations.
+    A JSON array of issue objects with keys: issue, 
+    problem_description, possible_manifest_file_path, severity, observations.
+
+    Include relevant information to help the devops engineer to understand the issues and take action.
   max_retries: 3
   context:
     - aggregate_cluster_issues
   agent: devops_tester
 
+
 log_cluster_issues:
   description: >
-    **Goal**  
-    Produce a concise technical log capturing problem summary, applied analysis,
-    and expected next steps.
+    **Goal — create a record**
 
-    **Guidelines**
-
-    • No tool calls in this task.  
-    • 4-6 sentences maximum.
+    Summarise, in no more that 50 words, Produce a concise technical log capturing problem summary
   expected_output: >
-    Plain-text log (4-6 sentences) covering:  
+    In no more that 50 words:  
     • Number of issues found and severity mix.  
     • Most critical blocker.  
     • High-level advice for resolution path.  
-    • Confirmation that JSON export is ready for downstream automation.
   max_retries: 2
   context:
     - issues_to_json

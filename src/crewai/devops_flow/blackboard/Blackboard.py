@@ -68,6 +68,7 @@ class Blackboard(BaseModel):
         show_high_issues: bool = True,
         show_medium_issues: bool = False,
         show_low_issues: bool = False,
+        show_records: bool = True,
         last_records: int = 20,
     ) -> dict:
         """
@@ -79,12 +80,14 @@ class Blackboard(BaseModel):
             show_high_issues: Whether to include high severity issues
             show_medium_issues: Whether to include medium severity issues
             show_low_issues: Whether to include low severity issues
+            show_records: Whether to include records in the output
             last_records: If set, include only the most recent N records
             
         Returns:
             dict: The blackboard data with filtered and ordered issues
         """
         # Get the model dump
+        # Use JSON mode so datetime objects are serialized as ISO-8601 strings
         data = self.model_dump()
         
         if hide_advanced_plan:
@@ -115,13 +118,17 @@ class Blackboard(BaseModel):
                 key=lambda x: severity_order.get(x.get('severity', 'LOW'), 2)
             )
         
-        # Trim records list if requested
-        if last_records is not None and 'records' in data:
-            try:
-                n = int(last_records)
-                if n > 0:
-                    data['records'] = data['records'][-n:]
-            except (ValueError, TypeError):
-                pass  # ignore invalid values
+        # Handle records visibility and trimming
+        if not show_records:
+            data.pop('records', None)
+        else:
+            # Trim records list if requested
+            if last_records is not None and 'records' in data:
+                try:
+                    n = int(last_records)
+                    if n > 0:
+                        data['records'] = data['records'][-n:]
+                except (ValueError, TypeError):
+                    pass  # ignore invalid values
 
         return data

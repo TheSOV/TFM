@@ -11,7 +11,19 @@ import src.services_registry.services as services
 from src.crewai.devops_flow.blackboard.Blackboard import Blackboard
 from os import getenv
 
-import yaml
+import src.crewai.devops_flow.crews.devops_crew.knowledge.devops_engineer as devops_engineer_knowledge
+import src.crewai.devops_flow.crews.devops_crew.knowledge.devops_researcher as devops_researcher_knowledge
+import src.crewai.devops_flow.crews.devops_crew.knowledge.devops_tester as devops_tester_knowledge
+import src.crewai.devops_flow.crews.devops_crew.knowledge.devops_crew as devops_crew_knowledge
+
+from crewai import Agent, Crew
+from crewai.knowledge.knowledge_config import KnowledgeConfig
+from crewai.knowledge.source.string_knowledge_source import StringKnowledgeSource
+
+knowledge_config = KnowledgeConfig(
+    results_limit=5,
+    score_threshold=0.6
+)
 
 @CrewBase
 class BaseCrew:
@@ -45,16 +57,20 @@ class BaseCrew:
             config=self.agents_config['devops_engineer'], # type: ignore[index]
             llm=getenv("AGENT_MAIN_MODEL"),
             function_calling_llm=getenv("AGENT_TOOL_CALL_MODEL"),
-            verbose=False,
+            verbose=True,
             tools=[
                 services.get("file_create"),
                 services.get("file_edit"),
                 services.get("file_read"),
-                services.get("file_version_history"),
-                services.get("file_version_diff"),
-                services.get("file_version_restore"),
+                # services.get("file_version_history"),
+                # services.get("file_version_diff"),
+                # services.get("file_version_restore"),
                 services.get("config_validator"),
-            ]
+            ],
+            knowledge_sources=[
+                StringKnowledgeSource(content=devops_engineer_knowledge.content),
+            ],
+            knowledge_config=knowledge_config
         )
 
     @agent
@@ -63,14 +79,18 @@ class BaseCrew:
             config=self.agents_config['devops_researcher'], # type: ignore[index]
             llm=getenv("AGENT_MAIN_MODEL"),
             function_calling_llm=getenv("AGENT_TOOL_CALL_MODEL"),
-            verbose=False,
+            verbose=True,
             tools=[
                 services.get("rag"),
                 services.get("stackoverflow_search"),
                 services.get("web_browser_tool"),
                 services.get("docker_image_analysis_tool"),
                 services.get("docker_search_images_tool")
-            ]
+            ],
+            knowledge_sources=[
+                StringKnowledgeSource(content=devops_researcher_knowledge.content),
+            ],
+            knowledge_config=knowledge_config
         )
 
     @agent
@@ -79,12 +99,16 @@ class BaseCrew:
             config=self.agents_config['devops_tester'], # type: ignore[index]
             llm=getenv("AGENT_MAIN_MODEL"),
             function_calling_llm=getenv("AGENT_TOOL_CALL_MODEL"),
-            verbose=False,
+            verbose=True,
             tools=[
                 services.get("kubectl"),
                 services.get("file_read"),
                 services.get("popeye_scan"),
-            ]
+            ],
+            knowledge_sources=[
+                StringKnowledgeSource(content=devops_tester_knowledge.content),
+            ],
+            knowledge_config=knowledge_config
         )
 
     @crew
@@ -94,8 +118,11 @@ class BaseCrew:
             tasks=self.tasks,    # Automatically collected by the @task decorator. 
             process=Process.sequential,
             planning=True,
-            verbose=False,
-            memory=True
+            verbose=True,
+            memory=True,
+            knowledge_sources=[
+                StringKnowledgeSource(content=devops_crew_knowledge.content),
+            ],
         )   
 
     

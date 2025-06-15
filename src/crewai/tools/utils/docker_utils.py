@@ -20,7 +20,7 @@ class DockerUtils:
     """
 
 
-    def _execute_docker_command(self, cmd: List[str], check: bool = True, capture_output: bool = True, text: bool = True) -> subprocess.CompletedProcess:
+    def _execute_docker_command(self, cmd: List[str], check: bool = True, capture_output: bool = True, text: bool = True, timeout: Optional[int] = None) -> subprocess.CompletedProcess:
         """Helper to run Docker-related commands with consistent error handling."""
         try:
             # For debugging: print(f"Executing command: {' '.join(cmd)}")
@@ -28,8 +28,19 @@ class DockerUtils:
                 cmd,
                 capture_output=capture_output,
                 text=text,
-                check=check
+                check=check,
+                timeout=timeout
             )
+        except subprocess.TimeoutExpired as e:
+            # The process was killed due to a timeout.
+            # We can still access stdout/stderr captured so far.
+            error_message = f"Command '{' '.join(cmd)}' timed out after {timeout} seconds."
+            # To allow callers to inspect partial output, we can re-raise with a custom exception or
+            # simply raise a RuntimeError that includes what was captured.
+            # For now, we'll include partial output in the error.
+            stderr_output = e.stderr.strip() if e.stderr else "(no stderr captured)"
+            stdout_output = e.stdout.strip() if e.stdout else "(no stdout captured)"
+            raise RuntimeError(f"{error_message} Stderr: {stderr_output} Stdout: {stdout_output}")
         except subprocess.CalledProcessError as e:
             error_message = e.stderr.strip() if e.stderr and capture_output else ""
             if not error_message and e.stdout and capture_output: # if stderr is empty, check stdout
@@ -342,7 +353,7 @@ class DockerUtils:
         cmd.extend([image_ref, 'sh', '-c', find_cmd_str])
 
         try:
-            result = self._execute_docker_command(cmd, check=True)
+            result = self._execute_docker_command(cmd, check=True, timeout=60)
             paths = [posixpath.normpath(p) for p in result.stdout.strip().splitlines() if p.strip()]
             return sorted(list(set(paths))), "success"
         except RuntimeError as e:
@@ -354,32 +365,6 @@ class DockerUtils:
             if "permission denied" in err_lower:
                 return [], "permission_denied"
             # print(f"_static_find_writable_native failed for {image_ref} (user: {user}): {e}") # Debug
-            return [], f"error: {str(e)}"
-
-    def _static_find_writable_busybox(self, image_ref: str, user: Optional[str] = None) -> Tuple[List[str], str]:
-        """Step 2A & 2C (busybox part): Find world-writable dirs using busybox find."""
-        # BusyBox find doesn't need 'sh -c'
-        find_args = ['find', '/', '-xdev', '-perm', '-0002', '-type', 'd', '-print']
-        cmd = ['docker', 'run', '--rm', '--entrypoint', 'busybox']
-        if user:
-            cmd.extend(['--user', user])
-        cmd.append(image_ref)
-        cmd.extend(find_args)
-
-        try:
-            # It's assumed busybox is present or this step wouldn't be called.
-            # If busybox itself is not found as an entrypoint, _execute_docker_command will raise.
-            result = self._execute_docker_command(cmd, check=True)
-            paths = [posixpath.normpath(p) for p in result.stdout.strip().splitlines() if p.strip()]
-            return sorted(list(set(paths))), "success"
-        except RuntimeError as e:
-            err_lower = str(e).lower()
-            # Check if 'find' itself is missing even within busybox (highly unlikely but possible if custom busybox)
-            if "find: not found" in err_lower or "executable file not found in $path" in err_lower and "find" in err_lower:
-                return [], "no_find_in_busybox"
-            if "permission denied" in err_lower:
-                return [], "permission_denied"
-            # print(f"_static_find_writable_busybox failed for {image_ref} (user: {user}): {e}") # Debug
             return [], f"error: {str(e)}"
 
     # ------------------------------------------------------------------ #
@@ -403,7 +388,7 @@ class DockerUtils:
             cmd += ["--user", user]
         cmd += [image_ref, "find", "/", "-xdev", "-perm", "-0002", "-type", "d", "-print"]
 
-        proc = self._execute_docker_command(cmd)
+        proc = self._execute_docker_command(cmd, timeout=60)
 
         # ENTRYPOINT 'busybox' not found at all
         if "executable file not found" in proc.stderr.lower():
@@ -512,8 +497,8 @@ class DockerUtils:
             run_cmd = ["docker", "run", "--rm", "--read-only", image_ref]
             
             # We use check=False because the command is expected to fail or have non-zero exit code
-            # if write attempts are made.
-            process_result = self._execute_docker_command(run_cmd, check=False)
+            # if write attempts are made. We add a timeout to prevent hanging indefinitely.
+            process_result = self._execute_docker_command(run_cmd, check=False, timeout=30)
             
             output_to_parse = ""
             if process_result.stdout:

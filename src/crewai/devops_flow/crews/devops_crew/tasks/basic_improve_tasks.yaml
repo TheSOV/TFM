@@ -20,21 +20,27 @@ analyse_manifest_issue:
     **Execution workflow**
 
     1. **Parse** - read file & error; highlight offending YAML keys/values.  
-    2. **Diagnose** - map each error to its cause (schema, typo, missing field
+    Use the file_version_history and file_version_diff to see that last changes.
+    If the file has a last working version, use it as a reference.
+    2. Check the logs, if the same error has been reported before multiple consecutive times, 
+    directly ask the devops_researcher to resolve the issue, giving the actual code and errors.
+    Request him to use web browser tool and stackoverflow tool to search for the issue.
+    and provide a simple, functional solution. If this is the case, jump to the xxx step.
+    If it is not the case, continue with the next steps.
+    3. **Diagnose** - map each error to its cause (schema, typo, missing field
        or wrong kind) and cite the relevant doc line.  
-    3. **Resolve gaps** - if the fix requires domain knowledge (e.g.,
+    4. **Resolve gaps** - if the fix requires domain knowledge (e.g.,
        `RollingUpdate` strategy default), ask **devops_researcher**; otherwise
        apply the *smallest viable* default and record why. As Iterations increase,
        increase the consults to the researcher, looking for the minimal viable
        default.
-    4. **Propose fix** - list exact field edits (add / replace / delete).  
-    5. **Radical fix** - in case that iterations goes over 5, and a persistent issue is found, 
+    5. **Propose fix** - list exact field edits (add / replace / delete).  
+    6. **Radical fix** - in case that iterations goes over 5, and a persistent issue is found, 
     in the records, apply redical changes, ignoring best-practice and security, in order
     to ensure that the issue is fixed.
-    6. **Report** - deliver root-cause, proposed YAML diffs (in prose),
+    7. **Report** - deliver root-cause, proposed YAML diffs (in prose),
        researcher Q-&-A, and rationale.
-       
-
+    
     **Context Blocks**
 
     • `<issues>` - Last validation error output.  
@@ -81,8 +87,11 @@ apply_manifest_fix:
        `validate_manifest  {security_scan:false}` call.
 
     **Important**  
-    The YAML edit **is mandatory**. The final action must be a successful
+    The YAML edit **is mandatory**. The final action must be a successful.
     validation call.
+
+    In case you need to create a file, that is not in the project and plan,
+    add it to one of the existing files. You cant create files out of the project and plan.
 
     **Context Blocks**
     • `<issues>` - Last validation error output.  
@@ -111,20 +120,20 @@ apply_manifest_fix:
 
 log_manifest_fix:
   description: >
-    **Goal - record the fix journey**  
-    Capture a short, engineer-readable timeline of the issue, the patch, and
-    the clean validation result for future audits.
+    **Goal — create a record**
 
-    During this step **no tools may be invoked**.
+    Summarise, in no more that 50 words, the actions taken in the previous step,
+    which is mentioned as context.
 
+    • Root-cause & symptom  
+    • Key YAML edits  
+    • Validation success  
+    • Any open caveats / follow-ups (e.g., will add HPA later)
   expected_output: >
-    4-6 sentence plain-text log that includes:  
-    • Brief error synopsis & root cause  
-    • Notable YAML changes  
-    • Validation success statement  
-    • Any open caveats / next follow-ups
+    Plain-text paragraph (4-6 sentences) as described, en 3 person, past tense, professional tone.
   max_retries: 3
   context:
     - analyse_manifest_issue
     - apply_manifest_fix
   agent: devops_engineer
+

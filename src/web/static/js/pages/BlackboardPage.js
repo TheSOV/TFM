@@ -11,7 +11,8 @@ window.BlackboardPage = {
     'manifests-tree': ManifestsTree,
     'images-list': ImagesList,
     'issues-list': IssuesList,
-    'records-list': RecordsList
+    'records-list': RecordsList,
+    'general-info-display': GeneralInfoDisplay
   },
   
     template: `
@@ -50,14 +51,30 @@ window.BlackboardPage = {
     flex-direction: column;
     /* min-height: 0; /* Add if necessary for deep nesting */
   }
-  
-  /* Make component cards (q-card directly inside a grid column) fill their grid cell and be flex columns */
-  .blackboard-dashboard .row > [class*="col-"] > .q-card,
-  .blackboard-dashboard .row > [class*="col-"] > * > .q-card { /* Catches components wrapped in an extra div */
+
+  /* Ensure intermediate .column divs (like those with q-gutter-y-md) also fill height 
+     of their parent grid cell, allowing cards within them to stretch fully. */
+  .blackboard-dashboard .row > [class*="col-"] > .column {
     flex-grow: 1;
+    display: flex; 
+    flex-direction: column; 
+    min-height: 0; /* Important for nested flex layouts */
+  }
+  
+  /* Ensure component tags (e.g., <issues-list>, <records-list>) grow and act as flex containers */
+  .blackboard-dashboard .row > [class*="col-"] > .column > * { /* Targets ComponentTag */
+    flex-grow: 1; /* ComponentTag grows to fill its .column wrapper */
+    display: flex; /* ComponentTag becomes a flex container for its root QCard */
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  /* Ensure the QCard (root of components) grows to fill its parent ComponentTag */
+  .blackboard-dashboard .row > [class*="col-"] > .column > * > .q-card { /* Targets QCard within ComponentTag */
+    flex-grow: 1; /* QCard grows to fill ComponentTag */
     display: flex;
     flex-direction: column;
-    min-height: 0; /* Crucial for flex item to shrink and grow properly */
+    min-height: 0;
   }
   
   /* Style for the content section within each component card to make it scrollable */
@@ -93,8 +110,18 @@ window.BlackboardPage = {
                 <q-icon name="dashboard" class="q-mr-sm" />
                 Blackboard
               </div>
+              <div class="q-ml-md row items-center q-gutter-x-md">
+                <div class="row items-center text-white">
+                  <q-icon name="sync" class="q-mr-xs" />
+                  <span class="text-weight-medium q-mr-xs">Phase:</span>{{ phase || 'N/A' }}
+                </div>
+                <div class="row items-center text-white">
+                  <q-icon name="loop" class="q-mr-xs" />
+                  <span class="text-weight-medium q-mr-xs">Iteration:</span>{{ iterations }}
+                </div>
+              </div>
               <q-space />
-              <q-badge v-if="lastUpdated" color="grey-5" text-color="white" class="q-mr-sm">
+              <q-badge v-if="lastUpdated" color="blue-grey-7" text-color="white" class="q-mr-sm">
                 <q-icon name="schedule" size="xs" class="q-mr-xs" />
                 {{ lastUpdated }}
               </q-badge>
@@ -104,7 +131,7 @@ window.BlackboardPage = {
                   round 
                   :icon="autoRefresh ? 'pause' : 'play_arrow'" 
                   @click="toggleAutoRefresh"
-                  :color="autoRefresh ? 'primary' : 'grey-7'"
+                  color="white"
                   :disable="isRefreshing"
                 >
                   <q-tooltip>{{ autoRefresh ? 'Pause auto-refresh' : 'Resume auto-refresh' }}</q-tooltip>
@@ -115,7 +142,7 @@ window.BlackboardPage = {
                   icon="refresh" 
                   @click="fetchBlackboard" 
                   :loading="isRefreshing"
-                  color="grey-7"
+                  color="white"
                 >
                   <q-tooltip>Refresh now</q-tooltip>
                 </q-btn>
@@ -131,40 +158,33 @@ window.BlackboardPage = {
               <div class="text-h6">Blackboard is Empty</div>
               <div>Content will appear here once a DevopsFlow is initiated.</div>
             </div>
-            <div v-else class="row q-col-gutter-x-lg q-col-gutter-y-md"> <!-- Added x-gutter for horizontal spacing too -->
-              <!-- Left Column -->
-              <div class="col-xs-12 col-md-8">
-                <div class="row q-col-gutter-md">
-                  <div class="col-xs-12 col-sm-6">
-                    <user-request-display :request="userRequest"></user-request-display>
-                  </div>
-                  <div class="col-xs-12 col-sm-6">
-                    <plans-display :basic-plan="basicPlanContent" :advanced-plan="advancedPlanContent"></plans-display>
-                  </div>
-                  <div class="col-12 q-mt-md">
-                    <manifests-tree :manifests-data="manifests"></manifests-tree>
-                  </div>
-                  <div class="col-xs-12 col-sm-6 q-mt-md">
-                    <images-list :images="images"></images-list>
-                  </div>
-                  <div class="col-xs-12 col-sm-6 q-mt-md">
-                    <issues-list :issues="issues"></issues-list>
-                  </div>
+            <div v-else class="row q-col-gutter-md"> <!-- Main content grid -->
+              <!-- First Column -->
+              <div class="col-xs-12 col-md-5">
+                <div class="column q-gutter-y-md">
+                  <user-request-display 
+                    :request="userRequest"
+                    :basic-plan="basicPlanContent"
+                    :advanced-plan="advancedPlanContent">
+                  </user-request-display>
+                  <general-info-display :general-info="generalInfo"></general-info-display>
+                  <images-list :images="images"></images-list>
+                  <manifests-tree :manifests-data="manifests"></manifests-tree>
                 </div>
               </div>
 
-              <!-- Right Column -->
-              <div class="col-xs-12 col-md-4 q-mt-md">
-                <div class="q-mb-md q-gutter-sm">
-                  <q-chip dense icon="sync" :label="phase || 'N/A'" color="primary" text-color="white">
-                    <q-tooltip>Current Phase</q-tooltip>
-                  </q-chip>
-                  <q-chip dense icon="loop" :label="'Iter: ' + iterations" color="secondary" text-color="white">
-                    <q-tooltip>Iterations</q-tooltip>
-                  </q-chip>
+              <!-- Second Column -->
+              <div class="col-xs-12 col-md">
+                <div class="column q-gutter-y-md">
+                  <issues-list :issues="issues"></issues-list>
                 </div>
-                <!-- Making RecordsList take available height -->
-                <records-list :records="records" class="fit-height-component"></records-list> 
+              </div>
+
+              <!-- Third Column -->
+              <div class="col-xs-12 col-md">
+                <div class="column q-gutter-y-md">
+                  <records-list :records="records" class="fit-height-component"></records-list> 
+                </div>
               </div>
             </div>
           </q-card-section>
@@ -224,6 +244,9 @@ window.BlackboardPage = {
   },
 
   computed: {
+    generalInfo() {
+      return this.blackboard && this.blackboard.general_info ? this.blackboard.general_info : { namespaces: [] };
+    },
     userRequest() {
       console.log('[Computed UserRequest] this.blackboard:', JSON.parse(JSON.stringify(this.blackboard)));
       const req = this.blackboard?.project?.user_request;
@@ -301,6 +324,7 @@ window.BlackboardPage = {
         } else {
           console.log('[FetchBlackboard] this.blackboard or this.blackboard.project is not set.');
         }
+        this.iterations = this.blackboard?.iterations ?? 0;
         this.lastUpdated = new Date().toLocaleTimeString();
         this.phase = this.blackboard?.phase || 'Phase not available';
         this.projectName = this.blackboard?.project?.project_name || 'N/A';

@@ -13,12 +13,35 @@ window.RecordsList = {
   computed: {
     hasRecords() {
       return this.records && this.records.length > 0;
+    },
+    reversedRecords() {
+      return this.records ? this.records.slice().reverse() : [];
     }
   },
   methods: {
-    formatTimestamp(timestamp) {
+    formatTime(timestamp) {
       if (!timestamp) return 'N/A';
-      return new Date(timestamp).toLocaleString();
+      // Plain HH:MM:SS string?
+      if (typeof timestamp === 'string' && /^\d{2}:\d{2}:\d{2}$/.test(timestamp.trim())) {
+        return timestamp;
+      }
+      let ms;
+      if (typeof timestamp === 'number') {
+        // If the timestamp is already in milliseconds (> 1e12) keep it, otherwise assume seconds and convert
+        ms = timestamp > 1e12 ? timestamp : timestamp * 1000;
+      } else if (typeof timestamp === 'string') {
+        // Attempt to parse numeric strings as epoch, otherwise fall back to Date.parse()
+        const num = Number(timestamp);
+        if (!isNaN(num)) {
+          ms = num > 1e12 ? num : num * 1000;
+        } else {
+          ms = Date.parse(timestamp);
+        }
+      } else {
+        return 'Invalid date';
+      }
+      const dt = new Date(ms);
+      return dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     },
     getRecordTypeColor(type) {
       switch (type?.toLowerCase()) {
@@ -59,19 +82,20 @@ window.RecordsList = {
         <div class="text-h6"><q-icon name="history" class="q-mr-sm" />Records</div>
       </q-card-section>
       <q-separator />
-      <q-card-section v-if="hasRecords" class="scrollable-card-section" style="padding: 0;">
+      <q-card-section v-if="hasRecords" class="scrollable-card-section" style="padding: 0; max-height: 95%; overflow-y: auto;">
         <q-list bordered separator>
             <q-item 
-              v-for="(record, index) in records" 
+              v-for="(record, index) in reversedRecords" 
               :key="index"
             >
               <q-item-section avatar top>
                 <q-icon :name="getRecordTypeIcon(record.agent)" :color="getRecordTypeColor(record.agent)" size="sm" />
               </q-item-section>
               <q-item-section>
-                <q-item-label lines="1">
+                <q-item-label>
                   <span class="text-weight-medium">{{ record.task_description || 'No description' }}</span>
                   <q-badge :color="getRecordTypeColor(record.agent)" :label="record.agent || 'N/A'" class="q-ml-sm" />
+                  <q-badge v-if="record.created_at" color="grey" :label="formatTime(record.created_at)" class="q-ml-sm" dense />
                 </q-item-label>
                 <!-- Timestamp not available in this record type -->
                 <q-item-label v-if="record.details && Object.keys(record.details).length > 0" caption class="q-mt-xs">

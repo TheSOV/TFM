@@ -33,11 +33,34 @@ window.IssuesList = {
         case 'low': return 'mdi-information-outline';
         default: return 'mdi-help-circle-outline';
       }
+    },
+    formatTime(timestamp) {
+      if (!timestamp) return '';
+      // If we already get a plain HH:MM:SS string, return it directly
+      if (typeof timestamp === 'string' && /^\d{2}:\d{2}:\d{2}$/.test(timestamp.trim())) {
+        return timestamp;
+      }
+      let ms;
+      if (typeof timestamp === 'number') {
+        ms = timestamp > 1e12 ? timestamp : timestamp * 1000;
+      } else if (typeof timestamp === 'string') {
+        const num = Number(timestamp);
+        if (!isNaN(num)) {
+          ms = num > 1e12 ? num : num * 1000;
+        } else {
+          ms = Date.parse(timestamp);
+        }
+      } else {
+        return '';
+      }
+      const dt = new Date(ms);
+      // Return only the time portion for display consistency
+      return dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     }
   },
   template: `
     <q-card class="shadow-1">
-      <q-card-section class="bg-red-1">
+      <q-card-section style="background-color: rgba(193, 0, 21, 0.45);">
         <div class="text-h6"><q-icon name="error" class="q-mr-sm" />Issues</div>
       </q-card-section>
       <q-separator />
@@ -52,7 +75,10 @@ window.IssuesList = {
                 <q-icon :name="getSeverityIcon(issue.severity)" :color="getSeverityColor(issue.severity)" size="md" />
               </q-item-section>
               <q-item-section>
-                <q-item-label class="text-weight-bold">{{ issue.issue || 'No title' }}</q-item-label>
+                <q-item-label class="text-weight-bold">
+                  {{ issue.issue || 'No title' }}
+                  <q-badge v-if="issue.created_at" color="grey" :label="formatTime(issue.created_at)" class="q-ml-sm" dense />
+                </q-item-label>
                 <q-item-label caption lines="3">{{ issue.problem_description || 'No description' }}</q-item-label>
                 <q-item-label caption v-if="issue.possible_manifest_file_path" class="q-mt-sm">
                   <q-icon name="description" size="xs" class="q-mr-xs" />

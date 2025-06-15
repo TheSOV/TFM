@@ -164,7 +164,7 @@ window.ManifestsTree = {
             <div 
               class="row items-center q-gutter-xs" 
               :class="{'cursor-pointer text-primary': prop.node.isLeaf}"
-              @click="prop.node.isLeaf ? handleNodeClick(prop.node) : toggleDir(prop.node)"
+              @click.stop="prop.node.isLeaf ? handleNodeClick(prop.node) : toggleDir(prop.node)"
             >
               <q-icon :name="prop.node.icon" :color="prop.node.isLeaf ? 'primary' : 'grey-7'" size="1.3em" class="q-mr-sm" />
               <span :class="{'text-weight-medium': !prop.node.isLeaf, 'text-primary': prop.node.isLeaf && prop.selected}">

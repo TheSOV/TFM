@@ -24,13 +24,5 @@ class GatherInformationCrew(BaseCrew):
     def create_advanced_plan(self) -> Task:
         return Task(
             config=self.tasks_config['create_advanced_plan'], # type: ignore[index]
-        )
-
-    @task
-    def create_basic_plan(self) -> Task:
-        return Task(
-            config=self.tasks_config['create_basic_plan'], # type: ignore[index]
-            json_output=outputs.ImagesNames
-        )
-    
+        )    
     

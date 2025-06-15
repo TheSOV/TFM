@@ -2,7 +2,9 @@ gather_information:
   description: >
     **Goal - draft the manifest blueprint**  
     Extract from *user_request* only the architectural and operational facts
-    needed to write Kubernetes YAML.
+    needed to write Kubernetes YAML. You must comply with the requests of the user,
+    and if there is missing information, assume the best practices and security. But user 
+    requests are the priority.
 
     **What you must enumerate**
 
@@ -35,8 +37,15 @@ gather_information:
       ```  
       Use GitOps-friendly directory names (workloads/, network/, rbac/).
 
-    *If any datum is missing, ping **devops_researcher**; otherwise fallback to
-    published best practice and cite the source.*
+    *If any datum is missing, ping you can search, otherwise fallback to
+    published best practice.*
+
+    <Important>
+       You can use only images from DockerHub. If the user requests a specific image, 
+       you can use it, but if the image is not available, you must use an alternative 
+       image from DockerHub, searching with the available web and search tools. 
+       It is totally forbidden to use images from other repositories.
+    </Important>
 
     <blackboard>
     {blackboard}
@@ -56,8 +65,10 @@ gather_information:
 research_project:
   description: >
     **Goal - harden the blueprint with facts**  
-    Replace all placeholders in *project_objective* with evidence-backed
-    content.
+    Replace all placeholders in  with evidence-backed
+    content. However, keep in mind the user requests. If in
+    the user request is not clear, assume the best practices and security.
+    However, user requests are the priority.
 
     **Research workflow**
 
@@ -67,6 +78,13 @@ research_project:
     4. Confirm directory/naming scheme with GitOps references (Argo CD, Flux).  
     5. Note conflicts; resolve via community precedence (CNCF, SIG notes).  
     6. Justify each change in ≤ 1 sentence with citation. 
+
+    <Important>
+       You can use only images from DockerHub. If the user requests a specific image, 
+       you can use it, but if the image is not available, you must use an alternative 
+       image from DockerHub, searching with the available web and search tools. 
+       It is totally forbidden to use images from other repositories.
+    </Important>
 
   expected_output: >
     Narrative prose or structured Markdown—**no YAML/JSON/code blocks**—that replaces
@@ -81,35 +99,73 @@ research_project:
 
 create_advanced_plan:
   description: >
-    **Goal - production-ready manifest playbook (test env only)**  
+    **Goal - production-ready manifest playbook**  
     Guide a senior engineer through every ordered step required to finish all
     YAML—*pre-observability*, single **/manifests** tree.
 
+    Your focus is the advanced plan. 
+
     **Deliverable**
 
-    • **Milestones** - namespace → core objects → secrets/config → ingress →
-      HPA on → PDB + rollout gates.  
-    • **Resource Breakdown** - table: *namespace* | *kind* | *relationship*
-      (Deployment ↔ HPA ↔ Service).  
-    • **Dependency Prep** - secrets first, then ConfigMaps, then workloads; PVC before StatefulSet.  
-    • **Scaling & Resilience** - replica baseline; HPA metric and min/max; PDB
-      `minAvailable`; simple fail-over story.  
-    • **Security & Governance** - RBAC roles, NetworkPolicies deny-all +
-      allow-list, restricted PodSecurity level.  
-    • **Documentation & Handoff** - inline YAML comments, naming rules
-      (`*-deployment.yaml`), commit message template.  
-    • **Manifests Layout** - **no overlays**; example:  
+    • **Manifests Layout** - **no overlays**; create the layout tree, with 
+     GitOps-friendly directory names (workloads/, network/, rbac/), 
+     based on the previous research. Example:  
       ```
       /manifests/
         workloads/
+          workload1_name.yaml
+          workload2_name.yaml
         network/
         rbac/
+        folder/
+          folder1/
+            folder1_name.yaml
+            folder2_name.yaml
+          folder2/
+            folder2_name.yaml
       ``` 
+
+      Include all the folders and files required for a high level, top quality, production ready plan.
+
+    •  Then foreach folder, add a little description of the folder, and for each yaml file
+    inside the folder, add two phases (each phase with bullet points) that will be divided in:
+      1. Basic Plan. (First phase) Include the bare minimal steps and configuration elements 
+      to make the folder work.
+      2. Advanced Plan. (Second phase) Include the configuration steps to make the folder work with 
+      the best practices and security.
+
+    With the steps in the basic plan, the project should be totally functional, ignoring potential
+    security issues.
+    Some of the manifest my not be used in the basic plan (First phase), and snot have any element 
+    in the basic plan (omit basic plan for them).
+
+    The advanced plan should include all the steps to make the manifest work with the best 
+    practices and security.
+
+    In both cases, try to write step by step what should the manifest contain, with a very 
+    brief explanation of why.
+
+    In any of both cases, no code is required. It is a verbal explanation of what should be done.
+
+    • Any other considerations or information that you think are important, such as specific 
+    configuration steps, specific informat  ion of a component, image etc. (here, you can hit 
+    devops_researcher for recommended images (the image from other repos, but prefer official 
+    images) would met the required criteria, in the case that the user does not explicitly ask 
+    for a specific image, some extra data, etc, but do not pin the version of the images yet).
+
     • **Out-of-Scope** - observability, cost tuning, chaos tests.
 
+    Include references if you use any.
+
     <Important>
-      Ensure that the plan matches the request of the user requirements, do not include
-      elements that will be not used.
+       You can use only images from DockerHub.
+    </Important>
+
+    <Important>
+      Ensure that the plan matches the request of the user requirements (except for the 
+      Manifests Layout, that will be high end, production ready with best practices and security).
+      The output MUST be a markdown, NOT a reference to it, 
+      like the phrase "like above".
     </Important>
 
     <blackboard>
@@ -120,44 +176,13 @@ create_advanced_plan:
     {feedback}
     </feedback>
 
-  expected_output: >
+  expected_output: >  
     Markdown only—no YAML/JSON/code—image names only.  Enough detail for a
-    senior engineer to generate final manifests without guesswork.
+    senior engineer to generate final manifests without guesswork. Do not
+    add to the md any symbol or text out of the format, it will be rendered
+    as it is.
   markdown: true
   max_retries: 3
-  context:
-    - research_project
-  agent: devops_researcher
-
-create_basic_plan:
-  description: >
-    **Goal - pocket-sized starter plan**  
-    Condense the advanced plan into a checklist a mid-level engineer can follow
-    to write the first manifests fast.
-
-    **Must include**
-
-    • Key milestones in one table (step → success criterion).  
-    • Critical defaults (namespace names, directory skeleton).  
-    • Any “gotchas” the advanced plan flags (e.g., must create Secret before
-      Deployment).  
-    • Exact **Manifests Layout** copied from advanced plan.
-
-    <blackboard>
-    {blackboard}
-    </blackboard>
-
-    <feedback>
-    {feedback}
-    </feedback>
-    
-  expected_output: >
-    Markdown checklist—no YAML/JSON/code—image names only; gives enough to
-    start coding manifests immediately.
-  markdown: true
-  max_retries: 3
-  context:
-    - create_advanced_plan
   agent: devops_researcher
 
 

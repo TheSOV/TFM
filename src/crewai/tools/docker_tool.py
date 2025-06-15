@@ -68,14 +68,19 @@ class DockerSearchImagesTool(BaseTool):
         verified_only: Optional[bool] = None,
         sort_by_stars: bool = True,
     ) -> List[Dict[str, Any]]:
-        results = self._docker_utils.search_images_cli(
-            query=query,
-            limit=limit,
-            official_only=official_only,
-            verified_only=verified_only,
-            sort_by_stars=sort_by_stars,
-        )
-        return results
+        try:
+            results = self._docker_utils.search_images_cli(
+                query=query,
+                limit=limit,
+                official_only=official_only,
+                verified_only=verified_only,
+                sort_by_stars=sort_by_stars,
+            )
+            return results
+        except Exception as e:
+            logger.error(f"Error during docker search for query '{query}': {e}", exc_info=True)
+            # Return an empty list in case of an error to prevent crashing the agent
+            return []
 
 
 # ---------------------------------------------------------------------------

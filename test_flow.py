@@ -3,7 +3,11 @@ from src.crewai.devops_flow.blackboard.utils.Image import Image
 from dotenv import load_dotenv
 load_dotenv(override=True)
 
+import os
 
+# Set the script's directory as the current working directory
+script_dir = os.path.dirname(os.path.abspath(__file__))
+os.chdir(script_dir)
 
 import mlflow
 import datetime
@@ -15,11 +19,11 @@ mlflow.crewai.autolog()
 import logging
 logging.basicConfig(level=logging.INFO)
 
-from src.crewai.devops_flow.DevopsFlow import MainFlow
+from src.crewai.devops_flow.DevopsFlow import DevopsFlow
 
 from pprint import pprint
 
-main_flow = MainFlow("i need an nginx server, for an low number of simultaneous users. It is an inner service for a small enterprise.")
+main_flow = DevopsFlow("i need an nginx server, for an low number of simultaneous users. It is an inner service for a small enterprise.")
 main_flow.kickoff()
 
 

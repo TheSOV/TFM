@@ -1,8 +1,15 @@
 get_image_names:
   description: >
     **Goal**  
-    Derive a list of container image names from the advanced plan. No need to get details,
+    Derive a list of container image names from the advanced plan. No need to get details, repos,
     versions, tags, etc. Only the image name.
+
+    <Important>
+       You can use only images from DockerHub. If the user requests a specific image, 
+       you can use it, but if the image is not available, you must use an alternative 
+       image from DockerHub, searching with the available web and search tools. 
+       It is totally forbidden to use images from other repositories.
+    </Important>
 
     <blackboard>
     {blackboard}

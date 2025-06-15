@@ -15,9 +15,7 @@ class StackOverflowSearchInput(BaseModel):
     max_questions: int = Field(20, description="Maximum number of questions to retrieve and analyze.")
     top_answers: int = Field(3, description="Number of top answers to retrieve per question.")
     min_answers: int = Field(1, description="Minimum number of answers a question must have.")
-    detailed: bool = Field(True, description="Whether to generate a detailed report with LLM analysis.")
-    use_brave_search: bool = Field(True, description="Whether to use Brave Search for better results. If disabled, falls back to direct Stack Overflow search.")
-
+   
 class QuestionSelection(BaseModel):
     """Model for selected question IDs."""
     selected_question_ids: List[Union[int, str]] = Field(..., 

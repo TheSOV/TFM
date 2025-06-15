@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import List, Dict, Any, Union
 from dulwich import porcelain
 from dulwich.repo import Repo
+from dulwich.errors import NotGitRepository
 from dulwich.diff_tree import tree_changes
 from dulwich.object_store import tree_lookup_path
 import difflib
@@ -42,12 +43,51 @@ class FileVersioning:
         self._ensure_repo()
     
     def _ensure_repo(self) -> None:
-        """Ensure the repository exists, create if it doesn't."""
-        if not (self.repo_path / ".git").exists():
-            self.repo = porcelain.init(str(self.repo_path))
-        else:
+        """Ensures a Git repository exists at the specified path, initializing one if necessary,
+        and ensures it has an initial commit so HEAD is valid."""
+        try:
             self.repo = Repo(str(self.repo_path))
-    
+            logger.info(f"Successfully loaded Git repository from {self.repo_path}.")
+            try:
+                self.repo.head()  # Check if HEAD exists (i.e., there are commits)
+                logger.info(f"Repository at {self.repo_path} has a valid HEAD.")
+            except KeyError:  # Indicates no commits, so no HEAD
+                logger.warning(f"Existing Git repository at {self.repo_path} has no commits (no HEAD). Making an initial commit.")
+                self._make_initial_commit() # This uses self.repo internally
+                # Re-load the repo to ensure dulwich reflects the new HEAD and commit objects
+                self.repo = Repo(str(self.repo_path))
+                logger.info(f"Repository reloaded after making initial commit for existing repo.")
+        except NotGitRepository:
+            logger.info(f"No valid Git repository found at {self.repo_path} (or path is not a repo). Initializing a new one.")
+            self.repo = Repo.init(str(self.repo_path))
+            logger.info(f"Initialized a new Git repository at {self.repo_path}.")
+            self._make_initial_commit()
+            # Re-load the repo after initial commit for new repo to pick up HEAD
+            self.repo = Repo(str(self.repo_path))
+            logger.info(f"Repository reloaded after making initial commit for new repo.")
+        except Exception as e:
+            logger.error(f"Unexpected error during repository check/initialization at {self.repo_path}: {e}")
+            # Depending on desired robustness, could attempt cleanup or specific error handling.
+            raise # Re-raise to make the problem visible during development.
+
+    def _make_initial_commit(self) -> None:
+        """Create a .gitkeep file and commit it to establish a HEAD."""
+        gitkeep_path = self.repo_path / ".gitkeep"
+        try:
+            with open(gitkeep_path, "w", encoding="utf-8") as f:
+                f.write("")  # Empty file
+
+            # Ensure we pass a path that Dulwich can resolve as *inside* repo_path. Using the
+            # absolute path avoids the "not a subpath" ValueError on Windows when the current
+            # working directory differs from the repo root.
+            porcelain.add(str(self.repo_path), [str(gitkeep_path)])
+            initial_commit_message = b"Initial commit to establish HEAD."
+            porcelain.commit(str(self.repo_path), initial_commit_message)
+            logger.info(f"Made initial commit with .gitkeep in {self.repo_path}")
+        except Exception as e:
+            logger.error(f"Failed to make initial commit in repository {self.repo_path}: {e}")
+            raise VersioningError(f"Failed to make initial commit in repository {self.repo_path}: {e}")
+
     def add_file(self, file_path: Union[str, Path]) -> None:
         """
         Add a file to version control.
@@ -60,9 +100,42 @@ class FileVersioning:
         """
 
         try:
-            repo_relative_path = Path(self.repo_path.name) / file_path
-            porcelain.add(self.repo_path, str(repo_relative_path))
+            # Re-establish repository if its .git folder was removed for any reason
+            if not (self.repo_path / '.git').exists():
+                logger.warning("Git repository missing in %s; reinitialising version control.", self.repo_path)
+                self._ensure_repo()
+
+            # Ensure file_path is a string for porcelain.add
+            # porcelain.add expects a list of paths relative to the repository root.
+            # self.repo_path is the repository root.
+            # The file_path argument to this method is defined as relative to repo root.
+            
+            full_target_path = self.repo_path / file_path
+            if not full_target_path.exists():
+                # This check is crucial because porcelain.add might not error on non-existent paths,
+                # but the file won't be added, leading to silent failures later.
+                logger.error(f"File {file_path} (resolved to {full_target_path}) does not exist in the repository {self.repo_path} and cannot be added.")
+                raise VersioningError(f"File {file_path} (resolved to {full_target_path}) does not exist in the repository and cannot be added.")
+
+            # Ensure a .gitkeep file exists to keep empty directories tracked
+            gitkeep_path = self.repo_path / '.gitkeep'
+            if not gitkeep_path.exists():
+                try:
+                    gitkeep_path.write_text('')
+                except Exception as exc:
+                    logger.debug("Could not create .gitkeep: %s", exc)
+            
+            # Stage both the target file and .gitkeep (if present)
+            paths_to_add = [str(full_target_path)]
+            if gitkeep_path.exists():
+                paths_to_add.append(str(gitkeep_path))
+            
+            # Use absolute paths so Dulwich can confirm they reside within repo_path on Windows
+            porcelain.add(str(self.repo_path), paths_to_add)
+            logger.debug(f"Successfully staged {file_path} in repository {self.repo_path}")
         except Exception as e:
+            # Catch specific dulwich errors if possible, or re-raise as VersioningError
+            logger.error(f"Error staging file {file_path} in repository {self.repo_path}: {str(e)}")
             raise VersioningError(f"Failed to add file {file_path}: {str(e)}")
 
     

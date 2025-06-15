@@ -134,7 +134,7 @@ class FileCreateTool(BaseTool):
     """
     name: str = "file_create"
     description: str = (
-        "Creates a new file with your specified content. If the file already exists, this tool will not work. "
+        "Creates a new file with your specified content. If the file already exists, this tool will not work. Never add temp at the beginning of the file path. Directly use the file path."
         "\n\nHOW TO USE THIS TOOL:\n"
         "- Provide a single JSON object (dictionary) with keys: 'file_path', 'content', and optionally 'comment'.\n"
         "- DO NOT provide a list/array or combine multiple operations in one call—this will result in an error.\n"
@@ -169,7 +169,7 @@ class FileCreateTool(BaseTool):
     _base_dir: str = PrivateAttr()
     _versioning = PrivateAttr(default=None)
     
-    def __init__(self, base_dir: Union[str, Path], versioning=None, **kwargs) -> None:
+    def __init__(self, base_dir: Union[str, Path], versioning=None, enable_versioning: bool = True, **kwargs) -> None:
         """
         Initialize the FileCreateTool.
         
@@ -179,7 +179,8 @@ class FileCreateTool(BaseTool):
         """
         super().__init__(**kwargs)
         self._base_dir = str(base_dir)
-        self._versioning = versioning
+        self._enable_versioning = enable_versioning
+        self._versioning = versioning if enable_versioning else None
     
     def _run(self, file_path: str, content: str, comment: str) -> Dict[str, Any]:
         """
@@ -218,7 +219,8 @@ class FileCreateTool(BaseTool):
             
             # Add to version control if versioning is available
             commit_sha = None
-            if self._versioning:
+            versioning_error_message = None
+            if self._enable_versioning and self._versioning:
                 try:
                     # Add the file to version control
                     self._versioning.add_file(file_path)
@@ -227,21 +229,30 @@ class FileCreateTool(BaseTool):
                     commit_sha = self._versioning.commit_changes(comment)
                     _logger.info(f"File {file_path} added to version control with commit {commit_sha}")
                 except Exception as ve:
-                    _logger.warning(f"Failed to version file {file_path}: {str(ve)}")
+                    _logger.error(f"Failed to version created file {file_path}: {str(ve)}")
+                    versioning_error_message = f"File written to disk, but versioning failed: {str(ve)}"
             
-            # Return success
+            # Prepare result for file creation
             result = {
-                "success": True,
+                "success": True, # File creation itself was successful
                 "file_path": file_path,
                 "full_path": full_path,
                 "details": f"File created successfully: {file_path}"
             }
             
-            # Add versioning information if available
-            if commit_sha:
-                result["versioned"] = True
-                result["commit_sha"] = commit_sha
-                result["version_comment"] = comment
+            # Add versioning status to result
+            if self._enable_versioning and self._versioning:
+                if commit_sha:
+                    result["versioned"] = True
+                    result["commit_sha"] = commit_sha
+                    result["version_comment"] = comment
+                else:
+                    result["versioned"] = False
+                    if versioning_error_message:
+                        result["versioning_error"] = versioning_error_message
+                    else:
+                        # This case implies self._versioning was true but commit_sha is None without an exception - unlikely with current FileVersioning
+                        result["versioning_error"] = "Versioning attempted but commit_sha not obtained, reason unknown."
             
             return result
             
@@ -268,6 +279,7 @@ class FileEditTool(BaseTool):
         "1. Direct line editing: Add, replace, or delete specific lines by their line number\n"
         "2. Pattern-based changes: Apply text patterns to each line\n"
         "3. Full replacement: Replace all file content at once\n"
+        "\nNEVER add temp at the beginning of the file path. Directly use the file path."
         "\nHOW TO USE THIS TOOL:\n"
         "1. Specify which file you want to change (file_path)\n"
         "2. Choose ONE of these methods to edit the file:\n"
@@ -313,7 +325,7 @@ class FileEditTool(BaseTool):
     _base_dir: str = PrivateAttr()
     _versioning = PrivateAttr(default=None)
     
-    def __init__(self, base_dir: Union[str, Path], versioning=None, **kwargs) -> None:
+    def __init__(self, base_dir: Union[str, Path], versioning=None, enable_versioning: bool = True, **kwargs) -> None:
         """
         Initialize the FileEditTool.
         
@@ -323,7 +335,8 @@ class FileEditTool(BaseTool):
         """
         super().__init__(**kwargs)
         self._base_dir = str(base_dir)
-        self._versioning = versioning
+        self._enable_versioning = enable_versioning
+        self._versioning = versioning if enable_versioning else None
     
     def _run(
         self, 
@@ -381,7 +394,8 @@ class FileEditTool(BaseTool):
                 
                 # Add to version control if versioning is available
                 commit_sha = None
-                if self._versioning:
+                versioning_error_message = None
+                if self._enable_versioning and self._versioning:
                     try:
                         # Add the file to version control
                         self._versioning.add_file(file_path)
@@ -390,7 +404,8 @@ class FileEditTool(BaseTool):
                         commit_sha = self._versioning.commit_changes(comment)
                         _logger.info(f"File {file_path} content replaced and committed to version control with commit {commit_sha}")
                     except Exception as ve:
-                        _logger.warning(f"Failed to version edited file {file_path}: {str(ve)}")
+                        _logger.error(f"Failed to version edited file {file_path} (content replacement): {str(ve)}")
+                        versioning_error_message = f"File content replaced, but versioning failed: {str(ve)}"
                 
                 # Prepare result
                 result = {
@@ -398,17 +413,27 @@ class FileEditTool(BaseTool):
                     "message": f"File {file_path} content replaced successfully.",
                     "details": {
                         "path": str(full_path),
-                        "size": os.path.getsize(full_path),
-                        "changes": "Full content replaced",
-                        "diff": ''.join(diff)
+                        "diff": "\n".join(diff) if diff else "No changes detected."
                     }
                 }
                 
-                # Add versioning information if available
-                if commit_sha:
-                    result["versioned"] = True
-                    result["commit_sha"] = commit_sha
-                    result["version_comment"] = comment
+                # Add versioning status to result
+                if self._enable_versioning and self._versioning:
+                    if commit_sha:
+                        result["versioned"] = True
+                        result["commit_sha"] = commit_sha
+                        result["version_comment"] = comment
+                        # For backward compatibility with potential consumers of details.versioned
+                        result["details"]["versioned"] = True 
+                        result["details"]["commit_sha"] = commit_sha
+                        result["details"]["version_comment"] = comment
+                    else:
+                        result["versioned"] = False
+                        if versioning_error_message:
+                            result["versioning_error"] = versioning_error_message
+                        else:
+                            result["versioning_error"] = "Versioning attempted but commit_sha not obtained, reason unknown."
+                        result["details"]["versioned"] = False # For backward compatibility
                 
                 return result
             
@@ -498,7 +523,8 @@ class FileEditTool(BaseTool):
                 
                 # Add to version control if versioning is available
                 commit_sha = None
-                if self._versioning:
+                versioning_error_message = None
+                if self._enable_versioning and self._versioning:
                     try:
                         # Add the file to version control
                         self._versioning.add_file(file_path)
@@ -507,28 +533,37 @@ class FileEditTool(BaseTool):
                         commit_sha = self._versioning.commit_changes(comment)
                         _logger.info(f"File {file_path} edited and committed to version control with commit {commit_sha}")
                     except Exception as ve:
-                        _logger.warning(f"Failed to version edited file {file_path}: {str(ve)}")
-                
+                        _logger.error(f"Failed to version edited file {file_path} (line_operations/expressions): {str(ve)}")
+                        versioning_error_message = f"File edited, but versioning failed: {str(ve)}"
+            
                 # Prepare result
                 result = {
-                    "success": True,
-                    "message": f"File {file_path} edited successfully with {operations_applied} line operations.",
+                    "success": True, # File edit itself was successful
+                    "message": f"File {file_path} edited successfully using provided operations/expressions.",
                     "details": {
                         "path": str(full_path),
-                        "size": full_path.stat().st_size,
-                        "operations_applied": operations_applied,
-                        "original_line_count": len(original_lines),
-                        "new_line_count": len(changed_lines),
-                        "diff": '\n'.join(diff)
+                        "diff": "\n".join(diff) if diff else "No changes detected."
                     }
                 }
-                
-                # Add versioning information if available
-                if commit_sha:
-                    result["versioned"] = True
-                    result["commit_sha"] = commit_sha
-                    result["version_comment"] = comment
-                
+
+                # Add versioning status to result
+                if self._enable_versioning and self._versioning:
+                    if commit_sha:
+                        result["versioned"] = True
+                        result["commit_sha"] = commit_sha
+                        result["version_comment"] = comment
+                        # For backward compatibility with potential consumers of details.versioned
+                        result["details"]["versioned"] = True
+                        result["details"]["commit_sha"] = commit_sha
+                        result["details"]["version_comment"] = comment
+                    else:
+                        result["versioned"] = False
+                        if versioning_error_message:
+                            result["versioning_error"] = versioning_error_message
+                        else:
+                            result["versioning_error"] = "Versioning attempted but commit_sha not obtained, reason unknown."
+                        result["details"]["versioned"] = False # For backward compatibility
+            
                 return result
             
             # If expressions are provided, use massedit to apply them (third precedence)
@@ -554,7 +589,8 @@ class FileEditTool(BaseTool):
                 
                 # Add to version control if versioning is available
                 commit_sha = None
-                if self._versioning:
+                versioning_error_message = None
+                if self._enable_versioning and self._versioning:
                     try:
                         # Add the file to version control
                         self._versioning.add_file(file_path)
@@ -563,7 +599,8 @@ class FileEditTool(BaseTool):
                         commit_sha = self._versioning.commit_changes(comment)
                         _logger.info(f"File {file_path} edited with expressions and committed to version control with commit {commit_sha}")
                     except Exception as ve:
-                        _logger.warning(f"Failed to version edited file {file_path}: {str(ve)}")
+                        _logger.error(f"Failed to version edited file {file_path} (expressions): {str(ve)}")
+                        versioning_error_message = f"File edited with expressions, but versioning failed: {str(ve)}"
                 
                 # Prepare result
                 result = {
@@ -571,18 +608,24 @@ class FileEditTool(BaseTool):
                     "message": f"File {file_path} edited successfully using expressions.",
                     "details": {
                         "path": str(full_path),
-                        "size": full_path.stat().st_size,
                         "changes": changes,
                         "expressions": expressions,
                         "diff": '\n'.join(diff)
                     }
                 }
                 
-                # Add versioning information if available
-                if commit_sha:
-                    result["versioned"] = True
-                    result["commit_sha"] = commit_sha
-                    result["version_comment"] = comment
+                # Add versioning status to result
+                if self._enable_versioning and self._versioning:
+                    if commit_sha:
+                        result["versioned"] = True
+                        result["commit_sha"] = commit_sha
+                        result["version_comment"] = comment
+                    else:
+                        result["versioned"] = False
+                        if versioning_error_message:
+                            result["versioning_error"] = versioning_error_message
+                        else:
+                            result["versioning_error"] = "Versioning attempted but commit_sha not obtained, reason unknown."
                 
                 return result
             
