@@ -1,1 +1,0 @@
-content = """DevOps crew knowledge"""

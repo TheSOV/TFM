@@ -4,23 +4,31 @@ think_solution:
 
         **If `<feedback>` exists, resolve it first.**
 
-    **Goal — draft the minimal, functionally correct manifest**
+    **Goal — draft a functional manifest**
 
     During this step no file should be created or modified. This is a plan step.
     Follow the indications of the basic plan in the blackboard.
 
-    1. **Analyse requirements** - read `<manifest>` metadata and blackboard
-       context; decide on the leanest valid `apiVersion`, `kind`, and `spec`
-       needed to hit Pod *Ready* state (omit hardening, autoscaling, pins).  
+    1. **Analyse requirements** - read `<manifest>` metadata and <blackboard>
+       context and make a plan to draft a functional manifest. 
     2. **Resolve gaps** - when any field is unclear (e.g., replica default,
-       selector-label mismatch, ConfigMap vs Secret choice) **query
-       _devops_researcher_ once**; otherwise pick the “smallest viable” default
-       and cite the source (official docs or CNCF guide).  
+       selector-label mismatch, ConfigMap vs Secret choice, for secrets always 
+       use stringData instead of data) **query
+       devops_researcher** if you consider that any information is missing or ambiguous; 
+       otherwise pick the best practice default.  
     3. **Author manifest** - single-document YAML, canonical field order
        (`kubectl explain` style). Embed concise comments per best practice.  
+       Ensure that each file contains only the elements and configurations that are relative to it.
+       Never mix two resources in the same yaml file during the planification steps. Ensure that 
+       each file is self-contained and clear.
     4. **Report** - return the YAML plus: chosen defaults, researcher Q&A,
        validation result.
 
+
+    <Important>
+    Take on count all the details in the <resource> section and in the blackboard, esuring to take in count all 
+    informations like volumes, capabilities, ports, write permissions, volume claims, etc. All details are important.
+    </Important>
 
     **Context Blocks**
 
@@ -49,20 +57,25 @@ think_solution:
 
     </feedback>
 
-  markdown: true
   expected_output: >
     • Final YAML manifest (code block)  
     • Justifications and defaults  
     • Any researcher exchange  
     • Local validation outcome
+
+    The output NEEDS to be the plain text, not a markdown document, and not a reference
+    tp a previous file. The last answer is the report integrally.
   max_retries: 3
-  agent: devops_engineer
+  agent: devops_researcher
 
 write_solution:
   description: >
     **If `<feedback>` exists, resolve it first.**
 
     **Goal — persist, lint, iterate until clean**
+    Using the context you received from the previous step, persist the YAML file
+    and lint it until it passes validation. It is important to follow the 
+    instructions given by the devops_researcher in the context.
 
     **Workflow**
 
@@ -70,19 +83,19 @@ write_solution:
        `Action: edit_file  Action_Inputs: { ... }`  
        (include rich `# comments` per Botkube/KodeKloud guidance).  
     2. **Validate loop** -  
-       a. `Action: validate_manifest  { "security_scan": false }`  
-          - wraps kubeval + kubectl dry-run.  
+       a. `Action: validate_manifest with security_scan: true`  
        b. If errors, patch & repeat; after **3 failures** or a new error
           category, **escalate to _devops_researcher_** with the offending log.   
-    3. **Success** - final action *must* be a passing validation call.
+    3. **Success** - final action *must* be a passing validation call (except for low severity security_scan).
+
+    <Important>
+    Take on count all the details in the <resource> section and in the blackboard, esuring to take in count all 
+    informations like volumes, capabilities, ports, write permissions, volume claims, etc. All details are important.
+    </Important>
 
     <manifest>
     {manifest}
     </manifest>
-
-    <blackboard>
-    {blackboard}
-    </blackboard>
 
     <feedback>
     {feedback}
@@ -91,8 +104,8 @@ write_solution:
   expected_output: >
     Ordered tool calls ending with:  
     `Action: edit_file  Action_Inputs: { ... }`  
-    `Action: validate_manifest  Action_Inputs: { "security_scan": false }`  
-    Validation must succeed.
+    `Action: validate_manifest  Action_Inputs: { "security_scan": true }`  
+    Validation must succeed (except for low severity security_scan).
 
     **Important**: The creattion of the YAML file is **ABSOLUTLY MANDATORY**, otherwise, task will fail.
   max_retries: 3
@@ -111,9 +124,8 @@ log_solution:
     • Validation success  
     • Any open caveats / follow-ups (e.g., will add HPA later)
   expected_output: >
-    Plain-text paragraph (4-6 sentences) as described, en 3 person, past tense, professional tone.
+    Plain-text paragraph max 50 words as described, en 3 person, past tense, professional tone.
   max_retries: 3
   context:
-   - think_solution
    - write_solution
   agent: devops_engineer

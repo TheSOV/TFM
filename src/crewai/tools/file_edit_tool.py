@@ -178,7 +178,7 @@ class FileCreateTool(BaseTool):
             versioning: Optional FileVersioning instance for version control.
         """
         super().__init__(**kwargs)
-        self._base_dir = str(base_dir)
+        self._base_dir = Path(base_dir)
         self._enable_versioning = enable_versioning
         self._versioning = versioning if enable_versioning else None
     
@@ -196,26 +196,25 @@ class FileCreateTool(BaseTool):
             Dict[str, Any]: Result of the operation, including success status and details.
         """
         try:
-            # Normalize the path separators
-            file_path = file_path.replace('\\', '/')
-            
-            # Create the full path
-            full_path = os.path.join(self._base_dir, file_path)
-            
-            # Ensure the directory exists
-            os.makedirs(os.path.dirname(full_path), exist_ok=True)
-            
+            # Standardize path handling
+            relative_path = os.path.normpath(file_path).replace('\\', '/').lstrip('/')
+            full_path = self._base_dir / relative_path
+            _logger.info(f"Attempting to create file at resolved path: {full_path}")
+
+            # Ensure the parent directory exists
+            full_path.parent.mkdir(parents=True, exist_ok=True)
+
             # Check if file already exists
-            if os.path.exists(full_path):
+            if full_path.exists():
+                _logger.error(f"File creation failed: file already exists at {full_path}")
                 return {
                     "success": False,
                     "error": f"File already exists: {file_path}",
                     "details": "Use the file_edit tool to modify existing files."
                 }
-            
+
             # Write the content to the file
-            with open(full_path, 'w', encoding='utf-8') as f:
-                f.write(content)
+            full_path.write_text(content, encoding='utf-8')
             
             # Add to version control if versioning is available
             commit_sha = None
@@ -236,7 +235,6 @@ class FileCreateTool(BaseTool):
             result = {
                 "success": True, # File creation itself was successful
                 "file_path": file_path,
-                "full_path": full_path,
                 "details": f"File created successfully: {file_path}"
             }
             
@@ -334,7 +332,7 @@ class FileEditTool(BaseTool):
             versioning: Optional FileVersioning instance for version control.
         """
         super().__init__(**kwargs)
-        self._base_dir = str(base_dir)
+        self._base_dir = Path(base_dir)
         self._enable_versioning = enable_versioning
         self._versioning = versioning if enable_versioning else None
     
@@ -365,14 +363,17 @@ class FileEditTool(BaseTool):
             ValueError: If no valid edit operation is provided.
         """
         try:
-            full_path = Path(self._base_dir) / file_path.replace("/", os.path.sep)
-            
+            # Standardize path handling
+            relative_path = os.path.normpath(file_path).replace('\\', '/').lstrip('/')
+            full_path = self._base_dir / relative_path
+            _logger.info(f"Attempting to edit file at resolved path: {full_path}")
+
             # Check if file exists
             if not full_path.exists():
+                _logger.error(f"File edit failed: file does not exist at {full_path}")
                 return {
                     "success": False,
-                    "error": f"File {file_path} does not exist. Use file_create tool to create a new file.",
-                    "details": {"path": str(full_path)}
+                    "error": f"File '{file_path}' does not exist. Use the file_create tool to create it first."
                 }
             
             # Store original content for diff
@@ -693,7 +694,10 @@ class FileReadTool(BaseTool):
             Dict[str, Any]: Result of the operation, including success status, file content, and details.
         """
         try:
-            full_path = self._base_dir / file_path
+            # Standardize path handling
+            relative_path = os.path.normpath(file_path).replace('\\', '/').lstrip('/')
+            full_path = self._base_dir / relative_path
+            _logger.info(f"Attempting to read file at path: {full_path}")
             
             # Check if file exists
             if not full_path.exists():

@@ -8,26 +8,20 @@ import src.crewai.devops_flow.crews.devops_crew.outputs.outputs as outputs
 import src.crewai.devops_flow.crews.devops_crew.guardrails.guardrails as guardrails
 
 import src.services_registry.services as services
-from src.crewai.devops_flow.blackboard.Blackboard import Blackboard
+
 from os import getenv
-
-import src.crewai.devops_flow.crews.devops_crew.knowledge.devops_engineer as devops_engineer_knowledge
-import src.crewai.devops_flow.crews.devops_crew.knowledge.devops_researcher as devops_researcher_knowledge
-import src.crewai.devops_flow.crews.devops_crew.knowledge.devops_tester as devops_tester_knowledge
-import src.crewai.devops_flow.crews.devops_crew.knowledge.devops_crew as devops_crew_knowledge
-
-from crewai import Agent, Crew
-from crewai.knowledge.knowledge_config import KnowledgeConfig
-from crewai.knowledge.source.string_knowledge_source import StringKnowledgeSource
-
-knowledge_config = KnowledgeConfig(
-    results_limit=5,
-    score_threshold=0.6
-)
 
 @CrewBase
 class BaseCrew:
     """Description of your crew"""
+    def __init__(self, path: str):
+        """Initialize the BaseCrew with the given path.
+        
+        Args:
+            path (str): The base path for the DevOps flow operations.
+        """
+        super().__init__()
+        self.path = path
 
     agents: List[BaseAgent]
     tasks: List[Task]
@@ -57,20 +51,16 @@ class BaseCrew:
             config=self.agents_config['devops_engineer'], # type: ignore[index]
             llm=getenv("AGENT_MAIN_MODEL"),
             function_calling_llm=getenv("AGENT_TOOL_CALL_MODEL"),
-            verbose=True,
+            verbose=False,
             tools=[
-                services.get("file_create"),
-                services.get("file_edit"),
-                services.get("file_read"),
-                # services.get("file_version_history"),
-                # services.get("file_version_diff"),
-                # services.get("file_version_restore"),
-                services.get("config_validator"),
+                services.get(f"file_create_{self.path}"),
+                services.get(f"file_edit_{self.path}"),
+                services.get(f"file_read_{self.path}"),
+                services.get(f"file_version_history_{self.path}"),
+                services.get(f"file_version_diff_{self.path}"),
+                services.get(f"file_version_restore_{self.path}"),
+                services.get(f"config_validator_{self.path}"),
             ],
-            knowledge_sources=[
-                StringKnowledgeSource(content=devops_engineer_knowledge.content),
-            ],
-            knowledge_config=knowledge_config
         )
 
     @agent
@@ -79,18 +69,17 @@ class BaseCrew:
             config=self.agents_config['devops_researcher'], # type: ignore[index]
             llm=getenv("AGENT_MAIN_MODEL"),
             function_calling_llm=getenv("AGENT_TOOL_CALL_MODEL"),
-            verbose=True,
+            verbose=False,
             tools=[
                 services.get("rag"),
                 services.get("stackoverflow_search"),
                 services.get("web_browser_tool"),
                 services.get("docker_image_analysis_tool"),
-                services.get("docker_search_images_tool")
+                services.get("docker_search_images_tool"),
+                services.get(f"file_read_{self.path}"),
+                services.get(f"file_version_history_{self.path}"),
+                services.get(f"file_version_diff_{self.path}"),
             ],
-            knowledge_sources=[
-                StringKnowledgeSource(content=devops_researcher_knowledge.content),
-            ],
-            knowledge_config=knowledge_config
         )
 
     @agent
@@ -99,16 +88,12 @@ class BaseCrew:
             config=self.agents_config['devops_tester'], # type: ignore[index]
             llm=getenv("AGENT_MAIN_MODEL"),
             function_calling_llm=getenv("AGENT_TOOL_CALL_MODEL"),
-            verbose=True,
+            verbose=False,
             tools=[
-                services.get("kubectl"),
-                services.get("file_read"),
+                services.get(f"kubectl_{self.path}"),
+                services.get(f"file_read_{self.path}"),
                 services.get("popeye_scan"),
             ],
-            knowledge_sources=[
-                StringKnowledgeSource(content=devops_tester_knowledge.content),
-            ],
-            knowledge_config=knowledge_config
         )
 
     @crew
@@ -117,12 +102,9 @@ class BaseCrew:
             agents=self.agents,  # Automatically collected by the @agent decorator
             tasks=self.tasks,    # Automatically collected by the @task decorator. 
             process=Process.sequential,
-            planning=True,
-            verbose=True,
-            memory=True,
-            knowledge_sources=[
-                StringKnowledgeSource(content=devops_crew_knowledge.content),
-            ],
+            planning=False,
+            verbose=False,
+            memory=False,
         )   
 
     

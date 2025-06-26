@@ -13,7 +13,7 @@ from dulwich.errors import NotGitRepository
 from dulwich.diff_tree import tree_changes
 from dulwich.object_store import tree_lookup_path
 import difflib
-
+import os
 import logging
 logger = logging.getLogger(__name__)
 
@@ -45,6 +45,7 @@ class FileVersioning:
     def _ensure_repo(self) -> None:
         """Ensures a Git repository exists at the specified path, initializing one if necessary,
         and ensures it has an initial commit so HEAD is valid."""
+        os.makedirs(self.repo_path, exist_ok=True)
         try:
             self.repo = Repo(str(self.repo_path))
             logger.info(f"Successfully loaded Git repository from {self.repo_path}.")

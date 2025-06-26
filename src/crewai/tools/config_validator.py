@@ -4,7 +4,8 @@ and other YAML/JSON configuration files. Uses various validation backends includ
 Checkov for security scanning.
 """
 import os
-
+import time
+import logging
 from pathlib import Path
 from typing import Dict, Any, Literal, Optional, List
 from pydantic import BaseModel, Field
@@ -17,6 +18,8 @@ from src.crewai.tools.utils.docker_validator import validate_docker_compose
 from src.crewai.tools.utils.checkov_validator import run_checkov_scan
 from src.crewai.tools.utils.docker_dry_run import docker_dry_run
 from src.crewai.tools.utils.k8s_dry_run import k8s_dry_run
+
+_logger = logging.getLogger(__name__)
 
 class ValidationRequest(BaseModel):
     """Request model for the config validator tool."""
@@ -96,140 +99,171 @@ class ConfigValidatorTool(BaseTool):
                 "errors": List[Dict[str, str]]
             }
         """
-        skip_checks = skip_checks or []
-        errors: List[Dict[str, str]] = []
-        
-        # Initialize result with empty validations
-        result: Dict[str, Any] = {
-            "file_path": str(file_path),
-            "file_type": file_type,
-            "valid": True,
-            "validations": {}
-            # No summary field - it's redundant with other information
-        }
-        
         try:
-            # Convert path separators to be OS-agnostic
-            normalized_path = file_path.replace("/", os.path.sep)
-            full_path = Path(str(self._base_dir)) / normalized_path
+            skip_checks = skip_checks or []
+            errors: List[Dict[str, str]] = []
             
-            # 1. Basic YAML validation (now with multi-document support)
+            # Initialize result with empty validations
+            result: Dict[str, Any] = {
+                "file_path": str(file_path),
+                "file_type": file_type,
+                "valid": True,
+                "validations": {}
+                # No summary field - it's redundant with other information
+            }
+            
             try:
-                yaml_result = validate_yaml_file(full_path)
-                result["validations"]["yaml"] = yaml_result
+                # Standardize path handling and add retry logic for file existence
+                relative_path = os.path.normpath(file_path).replace('\\', '/').lstrip('/')
+                full_path = self._base_dir / relative_path
+                _logger.info(f"Attempting to validate file at resolved path: {full_path}")
+
+                found = False
+                for attempt in range(3):
+                    if full_path.exists():
+                        found = True
+                        _logger.info(f"Successfully found file for validation: {full_path}")
+                        break
+                    _logger.warning(f"File not found on attempt {attempt + 1}. Retrying in 0.1s...")
+                    time.sleep(0.1)
+
+                if not found:
+                    _logger.error(f"File not found after retries: {full_path}")
+                    result["valid"] = False
+                    result["errors"] = [{
+                        "type": "FileNotFoundError",
+                        "message": f"File not found at the specified path: {file_path}",
+                        "details": f"The validator could not find the file at the resolved absolute path: {str(file_path)}. Please ensure the file was created correctly."
+                    }]
+                    return result
                 
-                # Extract document count information and add to main result
-                doc_count = yaml_result.get("summary", {}).get("doc_count", 0)
-                if doc_count > 0:
-                    result["document_count"] = doc_count
-                    if doc_count > 1:
-                        result["multi_document"] = True
-                        valid_docs = sum(1 for d in yaml_result.get("documents", []) if d.get("valid", False))
-                        result["valid_documents"] = valid_docs
+                # 1. Basic YAML validation (now with multi-document support)
+                try:
+                    yaml_result = validate_yaml_file(full_path)
+                    result["validations"]["yaml"] = yaml_result
+                    
+                    # Extract document count information and add to main result
+                    doc_count = yaml_result.get("summary", {}).get("doc_count", 0)
+                    if doc_count > 0:
+                        result["document_count"] = doc_count
+                        if doc_count > 1:
+                            result["multi_document"] = True
+                            valid_docs = sum(1 for d in yaml_result.get("documents", []) if d.get("valid", False))
+                            result["valid_documents"] = valid_docs
+                    
+                    # Update validation result status
+                    if not yaml_result.get("success", True):
+                        result["valid"] = False
+                    
+                    # Document count info was already added above
+                        
+                except Exception as e:
+                    yaml_result = {
+                        "valid": False,
+                        "doc_count": 0,
+                        "documents": [],
+                        "errors": [{
+                            "type": "Error",
+                            "message": f"YAML validation failed: {str(e)}",
+                            "doc_index": 0
+                        }]
+                    }
+                    
+                    result["validations"]["yaml"] = yaml_result
+                    result["valid"] = False
+                    return result
                 
-                # Update validation result status
-                if not yaml_result.get("success", True):
+                # 2. Type-specific validation
+                type_specific_result = None
+                validation_type = file_type.capitalize()
+                
+                try:
+                    if file_type == "kubernetes":
+                        type_specific_result = validate_kubernetes_manifest(full_path)
+                    elif file_type == "docker":
+                        type_specific_result = validate_docker_compose(full_path)
+                    
+                    if type_specific_result:
+                        result["validations"][file_type] = type_specific_result
+                        # Set validation status directly without using summary
+                        if not type_specific_result.get("success", True):
+                            result["valid"] = False
+                            
+                except Exception as e:
+                    type_specific_result = {
+                        "success": False,
+                        "error": f"{validation_type} validation failed: {str(e)}",
+                        "details": {"exception": str(e)},
+                        "summary": {
+                            "valid": False,
+                            "passed_checks": 0,
+                            "failed_checks": 1,
+                            "parsing_errors": 1,
+                            "total_checks": 1
+                        }
+                    }
+                    result["validations"][file_type] = type_specific_result
                     result["valid"] = False
                 
-                # Document count info was already added above
-                    
-            except Exception as e:
-                yaml_result = {
-                    "valid": False,
-                    "doc_count": 0,
-                    "documents": [],
-                    "errors": [{
-                        "type": "Error",
-                        "message": f"YAML validation failed: {str(e)}",
-                        "doc_index": 0
-                    }]
-                }
-                
-                result["validations"]["yaml"] = yaml_result
-                result["valid"] = False
-                return result
-            
-            # 2. Type-specific validation
-            type_specific_result = None
-            validation_type = file_type.capitalize()
-            
-            try:
+                # 2.5. Dry run validations
                 if file_type == "kubernetes":
-                    type_specific_result = validate_kubernetes_manifest(full_path)
+                    dry_run_result = k8s_dry_run(full_path)
+                    result["validations"]["kubernetes_dry_run"] = {
+                        "valid": dry_run_result["success"],
+                        "errors": dry_run_result.get("error", ""),
+                    }
+                    if not dry_run_result["success"]:
+                        result["valid"] = False
                 elif file_type == "docker":
-                    type_specific_result = validate_docker_compose(full_path)
-                
-                if type_specific_result:
-                    result["validations"][file_type] = type_specific_result
-                    # Set validation status directly without using summary
-                    if not type_specific_result.get("success", True):
+                    dry_run_result = docker_dry_run(full_path)
+                    result["validations"]["docker_dry_run"] = {
+                        "valid": dry_run_result["success"],
+                        "errors": dry_run_result.get("error", "")
+                    }
+                    if not dry_run_result["success"]:
+                        result["valid"] = False
+
+                # 3. Security scanning with Checkov if enabled
+                if enable_security_scan and file_type in ["kubernetes", "docker"]:
+                    try:
+                        checkov_result = run_checkov_scan(
+                            full_path,
+                            framework=file_type,
+                            skip_checks=skip_checks
+                        )
+                        result["validations"]["security_scan"] = checkov_result
+                        # Set validation status directly without using summary
+                        if not checkov_result.get("success", True):
+                            result["valid"] = False
+                        
+                    except Exception as e:
+                        checkov_result = {
+                            "valid": False,
+                            "errors": f"Security scan failed: {str(e)}",
+                            "passed_checks": 0,
+                            "failed_checks": 1,
+                            "parsing_errors": 1,
+                            "total_checks": 1,
+                            "failed_checks_list": [],
+                            "skipped_checks_list": []
+                        }
+                        result["validations"]["security_scan"] = checkov_result
                         result["valid"] = False
                         
+                # No need for summary-based final update
+                
+                return result
+                
             except Exception as e:
-                type_specific_result = {
-                    "success": False,
-                    "error": f"{validation_type} validation failed: {str(e)}",
-                    "details": {"exception": str(e)},
-                    "summary": {
-                        "valid": False,
-                        "passed_checks": 0,
-                        "failed_checks": 1,
-                        "parsing_errors": 1,
-                        "total_checks": 1
-                    }
-                }
-                result["validations"][file_type] = type_specific_result
+                # Handle unexpected errors
                 result["valid"] = False
-            
-            # 2.5. Dry run validations
-            if file_type == "kubernetes":
-                dry_run_result = k8s_dry_run(full_path)
-                result["validations"]["kubernetes_dry_run"] = {
-                    "valid": dry_run_result["success"],
-                    "errors": dry_run_result.get("error", ""),
+                error_info = {
+                    "valid": False,
+                    "errors": f"Unexpected error during validation: {str(e)}",
                 }
-                if not dry_run_result["success"]:
-                    result["valid"] = False
-            elif file_type == "docker":
-                dry_run_result = docker_dry_run(full_path)
-                result["validations"]["docker_dry_run"] = {
-                    "valid": dry_run_result["success"],
-                    "errors": dry_run_result.get("error", "")
-                }
-                if not dry_run_result["success"]:
-                    result["valid"] = False
-
-            # 3. Security scanning with Checkov if enabled
-            if enable_security_scan and file_type in ["kubernetes", "docker"]:
-                try:
-                    checkov_result = run_checkov_scan(
-                        full_path,
-                        framework=file_type,
-                        skip_checks=skip_checks
-                    )
-                    result["validations"]["security_scan"] = checkov_result
-                    # Set validation status directly without using summary
-                    if not checkov_result.get("success", True):
-                        result["valid"] = False
-                    
-                except Exception as e:
-                    checkov_result = {
-                        "valid": False,
-                        "errors": f"Security scan failed: {str(e)}",
-                        "passed_checks": 0,
-                        "failed_checks": 1,
-                        "parsing_errors": 1,
-                        "total_checks": 1,
-                        "failed_checks_list": [],
-                        "skipped_checks_list": []
-                    }
-                    result["validations"]["security_scan"] = checkov_result
-                    result["valid"] = False
-                    
-            # No need for summary-based final update
-            
-            return result
-            
+                result["validations"]["general"] = error_info
+                # No top-level errors as requested
+                return result
         except Exception as e:
             # Handle unexpected errors
             result["valid"] = False

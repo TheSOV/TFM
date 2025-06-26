@@ -12,100 +12,50 @@ window.BlackboardPage = {
     'images-list': ImagesList,
     'issues-list': IssuesList,
     'records-list': RecordsList,
-    'general-info-display': GeneralInfoDisplay
+    'general-info-display': GeneralInfoDisplay,
+    'events-panel': window.components?.EventsPanel || { template: '<div></div>' }
   },
   
     template: `
-<style>
-  /* Ensure the main page card and its content section fill height */
-  .blackboard-dashboard .card-container {
-    flex-grow: 1;
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
-  }
-  .blackboard-dashboard .card-container > .q-card { /* Main page card */
-    flex-grow: 1;
-    display: flex;
-    flex-direction: column;
-    min-height: 0; /* Important for nested flex */
-  }
-  /* The q-card-section holding the main grid (not the header section) */
-  .blackboard-dashboard .card-container > .q-card > .q-card__section:not(.bg-primary) {
-    flex-grow: 1;
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
-    padding-top: 0; /* Adjust if too much space from header */
-    padding-bottom: 0; /* Adjust if too much space at bottom */
-  }
-  /* The main grid row itself */
-  .blackboard-dashboard .card-container > .q-card > .q-card__section:not(.bg-primary) > .row {
-    flex-grow: 1;
-    min-height: 0;
-  }
-
-  /* Make all direct column children of rows (e.g. col-md-8, col-md-4) flex columns */
-  .blackboard-dashboard .row > [class*="col-"] {
-    display: flex;
-    flex-direction: column;
-    /* min-height: 0; /* Add if necessary for deep nesting */
-  }
-
-  /* Ensure intermediate .column divs (like those with q-gutter-y-md) also fill height 
-     of their parent grid cell, allowing cards within them to stretch fully. */
-  .blackboard-dashboard .row > [class*="col-"] > .column {
-    flex-grow: 1;
-    display: flex; 
-    flex-direction: column; 
-    min-height: 0; /* Important for nested flex layouts */
-  }
-  
-  /* Ensure component tags (e.g., <issues-list>, <records-list>) grow and act as flex containers */
-  .blackboard-dashboard .row > [class*="col-"] > .column > * { /* Targets ComponentTag */
-    flex-grow: 1; /* ComponentTag grows to fill its .column wrapper */
-    display: flex; /* ComponentTag becomes a flex container for its root QCard */
-    flex-direction: column;
-    min-height: 0;
-  }
-
-  /* Ensure the QCard (root of components) grows to fill its parent ComponentTag */
-  .blackboard-dashboard .row > [class*="col-"] > .column > * > .q-card { /* Targets QCard within ComponentTag */
-    flex-grow: 1; /* QCard grows to fill ComponentTag */
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
-  }
-  
-  /* Style for the content section within each component card to make it scrollable */
-  /* Apply class="scrollable-card-section" to the q-card-section that should scroll */
-  .blackboard-dashboard .q-card .scrollable-card-section {
-    flex-grow: 1;
-    overflow-y: auto;
-    min-height: 0; /* Important for content to not overflow its flex parent */
-    /* Add some padding back if removed from parent sections */
-    /* padding: 16px; */ 
-  }
-
-  /* Specific adjustments for rows within col-md-8 to distribute height */
-  .blackboard-dashboard .col-md-8.column > .row {
-    flex-grow: 1; /* Make child rows share the space of col-md-8 */
-    min-height: 0;
-    /* border: 1px dashed green; /* For debugging layout */
-  }
-
-  /* Optional: Define basis for rows within col-md-8 if equal distribution isn't desired */
-  /* Example: Give Manifests more space relative to others */
-  /* .blackboard-dashboard .col-md-8.column > .row:nth-child(1) { flex-basis: 25%; } /* UserRequest/Plans */
-  /* .blackboard-dashboard .col-md-8.column > .row:nth-child(2) { flex-basis: 50%; } /* Manifests */
-  /* .blackboard-dashboard .col-md-8.column > .row:nth-child(3) { flex-basis: 25%; } /* Images/Issues */
-
-</style>
-    <q-page padding class="blackboard-dashboard column no-wrap" style="max-width: 100vw; overflow-x: hidden; min-height: calc(100vh - 50px); /* Adjust 50px based on actual header height if any, or use 100vh if no persistent header */"> <!-- Ensure full width usage -->
+    <q-page padding class="column no-wrap" style="max-width: 100vw; overflow-x: hidden; min-height: calc(100vh - 50px);">
+      <style>
+        .card-container, .card-container > .q-card, .card-container > .q-card > .q-card__section:not(.bg-primary) {
+          display: flex;
+          flex-direction: column;
+          flex-grow: 1;
+          min-height: 0; /* Prevents flex items from overflowing */
+        }
+        .main-content-grid, .main-content-grid > .row {
+          flex-grow: 1;
+        }
+        .main-content-grid .column-wrapper {
+          display: flex;
+          flex-direction: column;
+          height: 100%;
+        }
+        .main-content-grid .column-wrapper > * { /* Targets the component tag, e.g., <issues-list> */
+          flex-grow: 1;
+          display: flex;
+          flex-direction: column;
+        }
+        .main-content-grid .column-wrapper > * > .q-card { /* Targets the root q-card of the component */
+          flex-grow: 1;
+          display: flex;
+          flex-direction: column;
+        }
+        .scrollable-card-section {
+          flex-grow: 1;
+          overflow-y: auto;
+        }
+      </style>
       <div class="card-container">
         <q-card class="shadow-3">
           <q-card-section class="bg-primary text-white">
             <div class="row items-center">
+              <!-- Header Content -->
+              <q-btn flat round icon="history" @click="$root.leftDrawerOpen = !$root.leftDrawerOpen" color="white" class="q-mr-sm">
+                <q-tooltip>Toggle Events</q-tooltip>
+              </q-btn>
               <div class="text-h5 text-weight-bold">
                 <q-icon name="dashboard" class="q-mr-sm" />
                 Blackboard
@@ -126,25 +76,14 @@ window.BlackboardPage = {
                 {{ lastUpdated }}
               </q-badge>
               <q-btn-group flat>
-                <q-btn 
-                  flat 
-                  round 
-                  :icon="autoRefresh ? 'pause' : 'play_arrow'" 
-                  @click="toggleAutoRefresh"
-                  color="white"
-                  :disable="isRefreshing"
-                >
+                <q-btn flat round :icon="autoRefresh ? 'pause' : 'play_arrow'" @click="toggleAutoRefresh" color="white" :disable="isRefreshing">
                   <q-tooltip>{{ autoRefresh ? 'Pause auto-refresh' : 'Resume auto-refresh' }}</q-tooltip>
                 </q-btn>
-                <q-btn 
-                  flat 
-                  round 
-                  icon="refresh" 
-                  @click="fetchBlackboard" 
-                  :loading="isRefreshing"
-                  color="white"
-                >
+                <q-btn flat round icon="refresh" @click="fetchBlackboard" :loading="isRefreshing" color="white">
                   <q-tooltip>Refresh now</q-tooltip>
+                </q-btn>
+                <q-btn flat round icon="article" @click="$root.rightDrawerOpen = !$root.rightDrawerOpen" color="white">
+                  <q-tooltip>Toggle Records</q-tooltip>
                 </q-btn>
               </q-btn-group>
             </div>
@@ -152,67 +91,37 @@ window.BlackboardPage = {
           
           <q-separator />
           
-          <q-card-section>
+          <q-card-section class="main-content-grid">
             <div v-if="!blackboard" class="text-center q-pa-xl text-grey-7">
               <q-icon name="hourglass_empty" size="3rem" class="q-mb-md" />
               <div class="text-h6">Blackboard is Empty</div>
               <div>Content will appear here once a DevopsFlow is initiated.</div>
             </div>
-            <div v-else class="row q-col-gutter-md"> <!-- Main content grid -->
-              <!-- First Column -->
-              <div class="col-xs-12 col-md-5">
-                <div class="column q-gutter-y-md">
-                  <user-request-display 
-                    :request="userRequest"
-                    :basic-plan="basicPlanContent"
-                    :advanced-plan="advancedPlanContent">
-                  </user-request-display>
+            <div v-else class="row q-col-gutter-md full-height">
+              <!-- Left Column -->
+              <div class="col-xs-12 col-md-6">
+                <div class="column-wrapper q-gutter-y-md">
+                  <user-request-display :request="userRequest" :basic-plan="basicPlanContent" :advanced-plan="advancedPlanContent"></user-request-display>
                   <general-info-display :general-info="generalInfo"></general-info-display>
                   <images-list :images="images"></images-list>
                   <manifests-tree :manifests-data="manifests"></manifests-tree>
                 </div>
               </div>
 
-              <!-- Second Column -->
-              <div class="col-xs-12 col-md">
-                <div class="column q-gutter-y-md">
+              <!-- Right Column -->
+              <div class="col-xs-12 col-md-6">
+                <div class="column-wrapper q-gutter-y-md">
                   <issues-list :issues="issues"></issues-list>
-                </div>
-              </div>
-
-              <!-- Third Column -->
-              <div class="col-xs-12 col-md">
-                <div class="column q-gutter-y-md">
-                  <records-list :records="records" class="fit-height-component"></records-list> 
                 </div>
               </div>
             </div>
           </q-card-section>
-
-
           
           <q-separator />
           
           <q-card-actions align="right" class="q-pa-md">
-            <q-btn 
-              label="Back to Home" 
-              to="/" 
-              color="primary" 
-              flat 
-              icon="arrow_back"
-              no-caps
-              padding="8px 16px"
-            />
-            <q-btn 
-              label="Copy to Clipboard" 
-              color="secondary" 
-              outline 
-              icon="content_copy"
-              @click="copyToClipboard"
-              :disable="!formattedBlackboard"
-              no-caps
-              padding="8px 16px"
-            />
+            <q-btn label="Back to Home" to="/" color="primary" flat icon="arrow_back" no-caps padding="8px 16px" />
+            <q-btn label="Copy to Clipboard" color="secondary" outline icon="content_copy" @click="copyToClipboard" :disable="!formattedBlackboard" no-caps padding="8px 16px" />
           </q-card-actions>
         </q-card>
         
@@ -227,7 +136,7 @@ window.BlackboardPage = {
           </div>
         </div>
       </div>
-    </div>
+    </q-page>
   `,
 
   data() {
@@ -247,6 +156,16 @@ window.BlackboardPage = {
     generalInfo() {
       return this.blackboard && this.blackboard.general_info ? this.blackboard.general_info : { namespaces: [] };
     },
+    
+    events() {
+      // The backend sends a nested structure: { events: { events: [...] } }
+      // We need to extract the inner array and pass it to the EventsPanel component.
+      if (this.blackboard && this.blackboard.events && Array.isArray(this.blackboard.events.events)) {
+        return this.blackboard.events.events;
+      }
+      return [];
+    },
+    
     userRequest() {
       console.log('[Computed UserRequest] this.blackboard:', JSON.parse(JSON.stringify(this.blackboard)));
       const req = this.blackboard?.project?.user_request;
@@ -328,6 +247,7 @@ window.BlackboardPage = {
         this.lastUpdated = new Date().toLocaleTimeString();
         this.phase = this.blackboard?.phase || 'Phase not available';
         this.projectName = this.blackboard?.project?.project_name || 'N/A';
+        this.$emit('update-drawers', this.blackboard);
       } catch (error) {
         console.error('Error fetching blackboard:', error);
         this.$q.notify({

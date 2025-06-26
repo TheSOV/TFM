@@ -86,8 +86,10 @@ class KubectlTool(BaseTool):
             str: Command output with exit code, stdout, and stderr
             
         Note:
-            For commands that work with files (like 'apply -f'), the file paths should be
-            relative to the base directory and use forward slashes.
+            For commands that work with files (like 'apply -f'), the file paths must be
+            relative to the base directory. Absolute paths and path traversal sequences
+            (e.g., '../') are not allowed for security reasons. Paths should use
+            forward slashes.
         """
         # Split the command into parts for processing
         parts = command.split()
@@ -101,13 +103,20 @@ class KubectlTool(BaseTool):
             part = parts[i]
             # Check for -f/--filename flags and process the next part as a file path
             if part in ('-f', '--filename') and i + 1 < len(parts):
-                file_path = parts[i + 1]
-                # Convert relative paths to absolute using the base directory
-                if not os.path.isabs(file_path):
-                    file_path = str((self._base_dir / file_path).resolve())
-                # Use forward slashes consistently
-                file_path = file_path.replace('\\', '/')
-                processed_parts.extend([part, file_path])
+                file_path_str = parts[i + 1]
+                # Normalize the path to be relative to the base directory, preventing path traversal
+                relative_path = os.path.normpath(file_path_str).replace('\\', '/').lstrip('/')
+                
+                # Create the full, absolute path
+                full_path = (self._base_dir / relative_path).resolve()
+                
+                # Security check: ensure the resolved path is within the base directory
+                if not str(full_path).startswith(str(self._base_dir.resolve())):
+                    return f"Error: Path '{file_path_str}' attempts to access a location outside the allowed directory."
+                
+                # Use the safe, absolute path with forward slashes for the command
+                safe_file_path = str(full_path).replace('\\', '/')
+                processed_parts.extend([part, safe_file_path])
                 i += 2  # Skip the next part as we've already processed it
             else:
                 processed_parts.append(part)

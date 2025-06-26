@@ -23,7 +23,9 @@ from src.crewai.devops_flow.crews.devops_crew.ImageInformationCrew import ImageI
 from src.crewai.devops_flow.crews.devops_crew.ImageNameExtractionCrew import ImageNameExtractionCrew
 from src.crewai.devops_flow.crews.devops_crew.TestCrew import TestCrew
 from src.crewai.devops_flow.crews.devops_crew.BasicImproveCrew import BasicImproveCrew
-from src.crewai.devops_flow.crews.devops_crew.SimplifyPlanCrew import SimplifyPlanCrew
+from src.crewai.devops_flow.crews.devops_crew.PerResourceResearchCrew import PerResourceResearchCrew
+
+from src.crewai.devops_flow.crews.devops_crew.event_listener.event_listener import DevopsEventListener
 
 from src.k8s.cluster import ClusterManager
 from src.k8s.kind import KindManager
@@ -43,9 +45,12 @@ services.init_services()
 logger = logging.getLogger(__name__)
 
 class DevopsFlow:
-    def __init__(self, user_request: str):
+    def __init__(self, user_request: str, path: str = "project"):
+        self.path = path
+        self.base_dir = os.getenv("TEMP_FILES_DIR", "temp")
 
         self.blackboard = services.get("blackboard")
+        self.event_listener = DevopsEventListener(self.blackboard)
         self.blackboard.reset()  # Reset to a clean state
         self.blackboard.project.user_request = user_request
 
@@ -53,17 +58,18 @@ class DevopsFlow:
         self.kill_signal: threading.Event = services.get("kill_signal_event")
         self.kill_signal.clear() # Clear at the start of a new flow instance
 
-
         self.kind_manager = KindManager()
         self.cluster_manager = None
 
+        services.init_services_with_path(self.path)
 
+    # TODO move this to parent
     def clear_temp_files(self):
         """
         Delete all content from the temp folder specified in TEMP_FILES_DIR environment variable.
         Creates the directory if it doesn't exist.
         """
-        temp_dir = os.getenv("TEMP_FILES_DIR", "temp")
+        temp_dir = os.path.join(os.getenv("TEMP_FILES_DIR", "temp"), self.path)
         
         # Create directory if it doesn't exist
         os.makedirs(temp_dir, exist_ok=True)
@@ -86,129 +92,161 @@ class DevopsFlow:
     def delete_untracked_files(self) -> list[str]:
         """Delete files in a workspace directory that are not referenced by any manifest tracked on the blackboard.
 
-        Args:
-            No arguments: The method uses the ``TEMP_FILES_DIR`` environment variable (default ``"temp"``) as base directory.
-
         Returns:
             list[str]: Absolute paths of the deleted files or directories.
         """
         deleted: list[str] = []
-        base_dir = os.getenv("TEMP_FILES_DIR", "temp")
-        # Build set of paths referenced in manifests relative to base_dir
-        manifest_paths = {
-            os.path.normpath(os.path.join(base_dir, m.file_path)) for m in self.blackboard.manifests
-        }
-        logger.debug("Pruning files/directories in %s not present in blackboard", base_dir)
+        base_dir = os.path.abspath(os.getenv("TEMP_FILES_DIR", "temp"))
+        full_path = os.path.abspath(os.path.join(base_dir, self.path))
+        
+        if not os.path.exists(full_path):
+            logger.warning(f"Workspace directory does not exist: {full_path}")
+            return deleted
+
+        # Build set of paths referenced in manifests
+        manifest_paths = set()
+        for m in self.blackboard.manifests:
+            try:
+                # Normalize and resolve the manifest path
+                # Use the robust, consistent path normalization pattern
+                relative_path = os.path.normpath(m.file_path).replace('\\', '/').lstrip('/')
+                abs_manifest_path = os.path.abspath(os.path.join(full_path, relative_path))
+                
+                # Ensure the path is within our workspace for security
+                if not abs_manifest_path.startswith(full_path):
+                    logger.warning(f"Manifest path outside workspace: {abs_manifest_path}")
+                    continue
+                    
+                manifest_paths.add(abs_manifest_path.lower())  # Case-insensitive comparison
+                logger.debug(f"Tracking manifest path: {abs_manifest_path}")
+            except Exception as e:
+                logger.error(f"Error processing manifest path {m.file_path}: {e}")
+
+        logger.info(f"Pruning untracked files in {full_path}")
+        
+        # Track directories to potentially remove if empty
+        dirs_to_check = set()
+
         # Remove untracked files
-        for root, _, files in os.walk(base_dir):
+        for root, dirs, files in os.walk(full_path, topdown=False):
+            # Process files
             for fname in files:
-                fpath = os.path.normpath(os.path.join(root, fname))
-                # Skip special Git housekeeping files (e.g., .gitkeep, .gitignore, .gitattributes)
-                git_housekeeping = {'.gitkeep', '.gitignore', '.gitattributes'}
-                if os.path.basename(fpath).lower() in git_housekeeping:
+                file_path = os.path.normpath(os.path.join(root, fname))
+                
+                # Skip if in .git directory or is a .gitkeep file
+                # Normalize path for consistent checking and see if '.git' is a component
+                normalized_check_path = file_path.replace(os.sep, '/')
+                if f'/.git/' in f'/{normalized_check_path}/' or fname.lower() == '.gitkeep':
+                    logger.debug(f"Preserving Git-related file: {file_path}")
                     continue
-                # Skip anything inside a hidden .git directory that might exist (defensive)
-                if os.sep + '.git' + os.sep in fpath:
+                    
+                # Skip other Git housekeeping files
+                git_housekeeping = {'.gitignore', '.gitattributes', '.gitmodules'}
+                if fname.lower() in git_housekeeping:
+                    logger.debug(f"Preserving Git file: {file_path}")
                     continue
 
-                if fpath not in manifest_paths:
+                # Check if file is tracked (case-insensitive comparison)
+                if file_path.lower() not in manifest_paths:
                     try:
-                        os.remove(fpath)
-                        deleted.append(fpath)
-                        logger.debug("Removed %s", fpath)
-                    except Exception as exc:
-                        logger.warning("Could not remove %s: %s", fpath, exc)
+                        os.remove(file_path)
+                        deleted.append(file_path)
+                        logger.debug(f"Removed untracked file: {file_path}")
+                        # Add parent directory to check if it becomes empty
+                        dirs_to_check.add(os.path.dirname(file_path))
+                    except OSError as e:
+                        logger.error(f"Failed to remove {file_path}: {e}")
 
-        # Build set of directories that must be kept (all ancestor dirs of manifest files)
-        keep_dirs: set[str] = set()
-        for mpath in manifest_paths:
-            cur = os.path.dirname(mpath)
-            while cur.startswith(base_dir):
-                keep_dirs.add(os.path.normpath(cur))
-                if cur == base_dir:
-                    break
-                cur = os.path.dirname(cur)
-
-        # Walk directories bottom-up to remove empty ones not in keep_dirs
-        for root, dirs, _ in os.walk(base_dir, topdown=False):
-            for d in dirs:
-                dir_path = os.path.normpath(os.path.join(root, d))
-                # Never delete Git metadata directories
-                if os.path.basename(dir_path) == '.git' or os.sep + '.git' + os.sep in dir_path:
+            # Process directories (in bottom-up order)
+            for dir_name in dirs:
+                dir_path = os.path.normpath(os.path.join(root, dir_name))
+                
+                # Always preserve .git directories
+                # Normalize path for consistent checking and see if '.git' is a component
+                normalized_check_path = dir_path.replace(os.sep, '/')
+                if f'/.git/' in f'/{normalized_check_path}/':
+                    logger.debug(f"Preserving Git directory: {dir_path}")
                     continue
 
-                if dir_path not in keep_dirs:
-                    try:
-                        os.rmdir(dir_path)
-                        deleted.append(dir_path)
-                        logger.debug("Removed empty dir %s", dir_path)
-                    except OSError:
-                        # Directory not empty or removal failed
-                        pass
+                # Check if directory is empty and not in manifest paths
+                try:
+                    contents = os.listdir(dir_path)
+                    # Check if directory is empty or only contains .gitkeep
+                    is_empty = (not contents or 
+                              (len(contents) == 1 and contents[0].lower() == '.gitkeep'))
+                    
+                    if is_empty and dir_path.lower() not in manifest_paths:
+                        try:
+                            # Remove .gitkeep if it exists
+                            gitkeep_path = os.path.join(dir_path, '.gitkeep')
+                            if os.path.exists(gitkeep_path):
+                                os.remove(gitkeep_path)
+                                logger.debug(f"Removed .gitkeep from directory: {dir_path}")
+                            
+                            os.rmdir(dir_path)
+                            deleted.append(dir_path)
+                            logger.debug(f"Removed empty directory: {dir_path}")
+                        except OSError as e:
+                            # Directory might not be empty due to concurrent operations
+                            logger.debug(f"Could not remove directory {dir_path}: {e}")
+                except OSError as e:
+                    logger.error(f"Error accessing directory {dir_path}: {e}")
+        
+        logger.info(f"Removed {len(deleted)} untracked items")
         return deleted
 
+
     def reset_cluster(self):
-        self.kind_manager.recreate_cluster()
-        self.cluster_manager = ClusterManager(base_dir=os.getenv("TEMP_FILES_DIR", "temp"))
+        self.kind_manager.recreate_cluster() # TODO move this to parent
+        self.cluster_manager = ClusterManager(base_dir=os.getenv("TEMP_FILES_DIR", "temp"), dir_path=self.path)
+        
+        logger.info(self.blackboard.model_dump())
+        logger.info(self.blackboard.project.model_dump())
+        
         self.cluster_manager.create_namespaces(self.blackboard.project.namespaces)
 
 
     def apply_k8s_config(self):   
-        try:
-            self.cluster_manager.create_from_directory()
-            return True
-        except Exception as ex:
-            logger.error(f"Error applying manifest: {str(ex)}")
-            return False
-
+        self.cluster_manager.create_from_directory()
     
     def delete_k8s_config(self):
         try:
             self.cluster_manager.delete_from_directory()
         except Exception as ex:
-            logger.error(f"Error deleting manifest: {str(ex)}")
+            logger.error(f"Deleting Manifest: {str(ex)}")
 
 
     @retry_with_feedback(max_attempts=3, delay=10)
-    def initial_research(self, feedback: Optional[str] = None):
+    async def initial_research(self, feedback: Optional[str] = None):
         if self.kill_signal.is_set():
             logger.info("Kill signal detected. Aborting initial_research.")
             return
         logger.info("Initial research")
 
-        advanced_crew = GatherInformationCrew().crew()
+        advanced_crew = GatherInformationCrew(path=self.path).crew()
 
-        advanced_results = advanced_crew.kickoff(
+        advanced_results = await advanced_crew.kickoff_async(
             inputs={
-                "blackboard": self.blackboard.export_blackboard(hide_advanced_plan=False, hide_basic_plan=False),
+                "blackboard": self.blackboard.export_blackboard(),
                 "feedback": feedback,
             }
         )
 
-        self.blackboard.project.advanced_plan = advanced_results.raw
+        self.blackboard.project.advanced_plan = advanced_results.raw   
 
-        basic_crew = SimplifyPlanCrew().crew()
-        basic_results = basic_crew.kickoff(
-            inputs={
-                "blackboard": self.blackboard.export_blackboard(hide_advanced_plan=False, hide_basic_plan=False),
-                "feedback": feedback,
-            }
-        )   
-        self.blackboard.project.basic_plan = basic_results.raw
-    
 
     @retry_with_feedback(max_attempts=3, delay=10)
-    def define_project_structure(self, feedback: Optional[str] = None):
+    async def define_project_structure(self, feedback: Optional[str] = None):
         if self.kill_signal.is_set():
             logger.info("Kill signal detected. Aborting define_project_structure.")
             return
         logger.info("Define project structure")
 
-        crew = DefinePreliminartStructureCrew().crew()
+        crew = DefinePreliminartStructureCrew(path=self.path).crew()
 
-        results = crew.kickoff(
+        results = await crew.kickoff_async(
             inputs={
-                "blackboard": self.blackboard.export_blackboard(hide_advanced_plan=False, hide_basic_plan=True),
+                "blackboard": self.blackboard.export_blackboard(),
                 "feedback": feedback,
             }
         )
@@ -227,11 +265,11 @@ class DevopsFlow:
     @retry_with_feedback(max_attempts=3, delay=10)
     async def get_images(self, feedback: Optional[str] = None):
 
-        crew = ImageNameExtractionCrew().crew()
+        crew = ImageNameExtractionCrew(path=self.path).crew()
 
-        results = crew.kickoff(
+        results = await crew.kickoff_async(
             inputs={
-                "blackboard": self.blackboard.export_blackboard(hide_advanced_plan=False, hide_basic_plan=False),
+                "blackboard": self.blackboard.export_blackboard(),
                 "feedback": feedback,
             }
         )
@@ -240,7 +278,7 @@ class DevopsFlow:
 
         # Process each image sequentially
         for image_name in results.json_dict['images']:
-            crew = ImageInformationCrew().crew()
+            crew = ImageInformationCrew(path=self.path).crew()
             # Await the kickoff directly and process the result
             crews.append(crew.kickoff_async(
                 inputs={
@@ -274,32 +312,82 @@ class DevopsFlow:
         """
         logger.info("First approach")
 
-        results = await FirstApproachCrew().crew().kickoff_async(
+        results = await FirstApproachCrew(path=self.path).crew().kickoff_async(
             inputs={
                 "manifest": manifest.model_dump(),
-                "blackboard": self.blackboard.export_blackboard(),
+                "blackboard": self.blackboard.export_blackboard(show_advanced_plan=False),
                 "feedback": feedback,
             }
         )
 
         temp_dir = os.getenv("TEMP_FILES_DIR", "temp")
-
-        abs_file_path = os.path.join(temp_dir, manifest.file_path)
+        # Normalize path separators and handle leading slashes using the consistent pattern
+        relative_path = os.path.normpath(manifest.file_path).replace('\\', '/').lstrip('/')
+        abs_file_path = os.path.abspath(os.path.join(temp_dir, self.path, relative_path))
+        
+        logger.debug(f"Temporary directory: {temp_dir}")
+        logger.debug(f"Project path: {self.path}")
+        logger.debug(f"Manifest file path: {manifest.file_path}")
+        logger.debug(f"Resolved absolute path: {abs_file_path}")
+        
         if not os.path.isfile(abs_file_path):
             logger.warning(f"Manifest file at {abs_file_path} does not exist on disk.")
-            raise FileNotFoundError(f"You forgot to create the {abs_file_path}. Try again and ensure that this time the file is created with the appropriate content.")
+            raise FileNotFoundError(f"You forgot to create the {abs_file_path}. Try again and ensure that this time the file is created with the appropriate content. Use the file_create tool to create it, with the tool call Action: action_name Action Input: .....")
 
         return results
 
 
     @retry_with_feedback(max_attempts=3, delay=10)
-    def test_cluster(self, feedback: Optional[str] = None):
+    async def per_resource_research(self, feedback: Optional[str] = None):
+        if self.kill_signal.is_set():
+            logger.info("Kill signal detected. Aborting per_resource_research.")
+            return
+        
+        logger.info("Per resource research")
+
+        per_resource_research_crews = []
+        
+        for manifest in self.blackboard.manifests:
+            crew = PerResourceResearchCrew(path=self.path).crew()
+            per_resource_research_crews.append(
+                crew.kickoff_async(
+                    inputs={
+                        "blackboard": self.blackboard.export_blackboard(),
+                        "feedback": feedback,
+                        "resource": manifest.model_dump(),
+                    }
+                )
+            )
+
+        # Wait for all crews to complete and get their results
+        results = await asyncio.gather(*per_resource_research_crews)
+       
+        # Pair results with manifests by order and update descriptions
+        if len(results) != len(self.blackboard.manifests):
+            logger.warning(f"Mismatch in number of results ({len(results)}) and manifests ({len(self.blackboard.manifests)})")
+            
+        # Update each manifest's description with the corresponding result
+        for i, (result, manifest) in enumerate(zip(results, self.blackboard.manifests)):
+            if result is None:
+                logger.warning(f"Skipping None result at index {i}")
+                continue
+                
+            try:
+                manifest.description = result.raw
+                logger.info(f"Updated description for manifest: {manifest.file_path}")
+            except Exception as e:
+                logger.error(f"Failed to update manifest at index {i} (file: {manifest.file_path}): {str(e)}")
+
+
+    @retry_with_feedback(max_attempts=3, delay=10)
+    async def test_cluster(self, feedback: Optional[str] = None):
         if self.kill_signal.is_set():
             logger.info("Kill signal detected. Aborting test_cluster.")
             return
         
         logger.info("Deleting untracked files")
         deleted_files = self.delete_untracked_files()
+
         if deleted_files:
             deleted_files_str = "\n".join([f"- {f}" for f in deleted_files])
             record_content = (
@@ -317,24 +405,25 @@ class DevopsFlow:
 
         logger.info("Applying manifests")
         
-        try:
-            self.cluster_manager.create_namespaces(self.blackboard.general_info.namespaces)
+        self.cluster_manager.create_namespaces(self.blackboard.general_info.namespaces)
+
+        try:            
             self.apply_k8s_config()
         except Exception as ex:
-            try:
-                self.delete_k8s_config()
-            except Exception as ex:
-                logger.error(f"Error deleting manifest: {str(ex)}")
+            self.delete_k8s_config()
 
-            logger.error(f"Error applying manifest: {str(ex)}")
+            error = str(ex).replace(self.base_dir, "").replace(self.path, "").replace("\\\\\\", "")
+
+            logger.error(f"\n\nError applying the manifests: {error}\n\n")
 
             issue = Issue(
                 issue="Error applying the manifests",
                 severity=SEVERITY_HIGH,
-                problem_description=str(ex),
+                problem_description=error + "\n\n Ignore any warnings, focus on the fatal errors",
                 possible_manifest_file_path="see the description of the issue",
                 observations="Apply failed",
             )
+
             self.blackboard.issues = [issue]
             return
 
@@ -346,27 +435,38 @@ class DevopsFlow:
             time.sleep(0.1)
         logger.info("Testing cluster")
 
-        crew = TestCrew().crew()
+        crew = TestCrew(path=self.path).crew()
 
-        results = crew.kickoff(
+        results = await crew.kickoff_async(
             inputs={
-                "blackboard": self.blackboard.export_blackboard(show_records=False, show_high_issues=False, show_medium_issues=False, show_low_issues=False),
+                "blackboard": self.blackboard.export_blackboard(show_advanced_plan=False, show_records=False, show_high_issues=False, show_medium_issues=False, show_low_issues=False),
                 "feedback": feedback,
             }
         )
 
-        issues = results.tasks_output[3].json_dict['issues']
-        record = results.tasks_output[4].json_dict
+        issues = results.tasks_output[4].json_dict['issues']
+        logger.info(10*"\n" + f"Issues: {issues}")
+
+        record = results.tasks_output[5].json_dict
+        logger.info(10*"\n" + f"Record: {record}")
+
+        for issue in issues:
+            if 'created_at' in issue:
+                issue.pop('created_at')
+        logger.info(10*"\n" + f"Issues after removing created_at: {issues}")
+
+        if 'created_at' in record:
+            record.pop('created_at')
+        logger.info(10*"\n" + f"Record after removing created_at: {record}")
 
         self.blackboard.issues = [Issue(**issue) for issue in issues]
         self.blackboard.records.append(Record(**record))
+        logger.info(10*"\n" + f"Blackboard: updated")
 
         try:
             self.delete_k8s_config()
         except Exception as ex:
             logger.error(f"Error deleting manifest: {str(ex)}")
-
-        self.cluster_manager.create_namespaces(self.blackboard.general_info.namespaces)
 
 
     @retry_with_feedback(max_attempts=3, delay=10)
@@ -375,9 +475,9 @@ class DevopsFlow:
         executions = []
         for key, value in issues_by_manifest.items():
             executions.append(
-                BasicImproveCrew().crew().kickoff_async(
+                BasicImproveCrew(path=self.path).crew().kickoff_async(
                     inputs={
-                        "blackboard": self.blackboard.export_blackboard(),
+                        "blackboard": self.blackboard.export_blackboard(show_advanced_plan=False, show_manifests=False),
                         "feedback": feedback,
                         "issues": [issue.model_dump() for issue in value],
                     }
@@ -388,6 +488,8 @@ class DevopsFlow:
 
         for result in results:
             json_record = result.json_dict
+            if 'created_at' in json_record:
+                json_record.pop('created_at')
             self.blackboard.records.append(Record(**json_record))
       
 
@@ -397,36 +499,35 @@ class DevopsFlow:
     ##
     ############################################
 
-    def initial_research_flow(self):
+    async def initial_research_flow(self):
         logger.info("Initial research flow")
-        self.initial_research()
+        await self.initial_research()
 
 
-    def define_project_structure_flow(self) -> None:
-        """
-        Run the first approach flow and ensure manifest status is valid.
-        """
-        self.define_project_structure()
+    async def second_research_flow(self):
+        self.blackboard.phase = "Defining Project Structure and Getting Images"
+        
+        project_structure_flow = self.define_project_structure()
+        get_images_flow = self.get_images()
 
-    def get_images_flow(self):
-        """
-        Run the get images flow
-        """
-        asyncio.run(self.get_images())
+        await asyncio.gather(project_structure_flow, get_images_flow)
 
+    async def per_resource_research_flow(self):
+        self.blackboard.phase = "Per Resource Research"
+        await self.per_resource_research()
 
-    def prepare_environment_flow(self):
+    async def prepare_environment_flow(self): 
 
         self.clear_temp_files()
 
         # Ensure the version-control repository exists in TEMP_FILES_DIR so that
         # subsequent tools can safely add/commit files.
 
-        fv = services.get("file_versioning")  # singleton instance
+        fv = services.get(f"file_versioning_{self.path}")  # singleton instance
         fv._ensure_repo()  # pylint: disable=protected-access
 
         self.kind_manager.recreate_cluster()
-        self.cluster_manager = ClusterManager(base_dir=os.getenv("TEMP_FILES_DIR", "temp"))
+        self.cluster_manager = ClusterManager(base_dir=os.getenv("TEMP_FILES_DIR", "temp")) # TODO: This should be a service
         self.cluster_manager.create_namespaces(self.blackboard.general_info.namespaces)
 
 
@@ -444,10 +545,12 @@ class DevopsFlow:
         results = await asyncio.gather(*executions)
         for result in results:
             json_record = result.json_dict
+            if 'created_at' in json_record:
+                json_record.pop('created_at')
             self.blackboard.records.append(Record(**json_record))
             
 
-    def basic_test_and_improve_flow(self):
+    async def basic_test_and_improve_flow(self):
         
         for i in range(10):
             self.blackboard.iterations += 1
@@ -457,7 +560,7 @@ class DevopsFlow:
                 return # Exit the flow method    
 
             self.blackboard.phase = "Testing"
-            self.test_cluster()
+            await self.test_cluster()
 
             issues = self.blackboard.issues
             high_issues = [issue for issue in issues if issue.severity == SEVERITY_HIGH]
@@ -474,70 +577,82 @@ class DevopsFlow:
                 break
 
             self.blackboard.phase = "Improving"
-            asyncio.run(self.basic_improve(issues_by_manifest))
+            await self.basic_improve(issues_by_manifest)
             
 
-    def kickoff(self):
-        logger.info("Starting DevopsFlow kickoff in 10 seconds...")
-        time.sleep(10)
+    async def kickoff(self):
+        try:
+            logger.info("Starting DevopsFlow kickoff in 10 seconds...")
+            time.sleep(10)
 
-        unique_time_id = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
-        mlflow.set_experiment(f"devops_flow_{unique_time_id}")
-        mlflow.crewai.autolog()
+            unique_time_id = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
+            mlflow.set_experiment(f"devops_flow_{unique_time_id}")
+            mlflow.crewai.autolog()
 
-        if self.kill_signal.is_set():
-            logger.info("Kill signal detected at the very start of kickoff. Aborting.")
-            return
-        
-        logger.info("Starting DevopsFlow kickoff...")
-        # Clear signal at the beginning of a full kickoff, in case it was set from a previous aborted run and not cleared by API
-        self.blackboard.phase = "Initial Research"
-        self.initial_research_flow()
+            if self.kill_signal.is_set():
+                logger.info("Kill signal detected at the very start of kickoff. Aborting.")
+                return
+            
+            logger.info("Starting DevopsFlow kickoff...")
+            # Clear signal at the beginning of a full kickoff, in case it was set from a previous aborted run and not cleared by API
+            self.blackboard.phase = "Initial Research"
+            await self.initial_research_flow()
 
-        if self.kill_signal.is_set():
-            logger.info("Kill signal detected after initial_research_flow. Aborting kickoff.")
-            return
+            if self.kill_signal.is_set():
+                logger.info("Kill signal detected after initial_research_flow. Aborting kickoff.")
+                return
 
-        self.blackboard.phase = "Defining Project Structure"
-        self.define_project_structure_flow()
+            await self.second_research_flow()
 
-        if self.kill_signal.is_set():
-            logger.info("Kill signal detected after define_project_structure_flow. Aborting kickoff.")
-            return
+            if self.kill_signal.is_set():
+                logger.info("Kill signal detected after second_research_flow. Aborting kickoff.")
+                return
 
-        self.blackboard.phase = "Getting Images"
-        self.get_images_flow()
+            await self.per_resource_research_flow()
 
-        if self.kill_signal.is_set():
-            logger.info("Kill signal detected after get_images_flow. Aborting kickoff.")
-            return
+            if self.kill_signal.is_set():
+                logger.info("Kill signal detected after per_resource_research_flow. Aborting kickoff.")
+                return
 
-        with open("blackboard.pkl", "wb") as f:
-            pickle.dump(self.blackboard, f)
+            self.blackboard.phase = "Preparing Environment"
+            await self.prepare_environment_flow()
 
-        with open("blackboard.pkl", "rb") as f:
-            self.blackboard = pickle.load(f)
-            import src.services_registry.services as services
-            services._cache["blackboard"] = self.blackboard
+            if self.kill_signal.is_set(): # Check before starting async flow
+                logger.info("Kill signal detected before first_approach_flow. Aborting kickoff.")
+                return
 
-        self.blackboard.phase = "Preparing Environment"
-        self.prepare_environment_flow()
+            # with open("blackboard.pkl", "rb") as f:
+            #     self.blackboard = pickle.load(f)
+            #     services._cache["blackboard"] = self.blackboard
+            #     pprint(self.blackboard)
 
-        if self.kill_signal.is_set(): # Check before starting async flow
-            logger.info("Kill signal detected before first_approach_flow. Aborting kickoff.")
-            return
+            with open("blackboard.pkl", "wb") as f:
+                pickle.dump(self.blackboard, f)
 
-        self.blackboard.phase = "First Code Approach"
-        asyncio.run(self.first_approach_flow())
+            self.blackboard.phase = "First Code Approach"
+            await self.first_approach_flow()
 
-        if self.kill_signal.is_set(): # Check before starting test and improve flow
-            logger.info("Kill signal detected before basic_test_and_improve_flow. Aborting kickoff.")
-            return
-        
-        self.basic_test_and_improve_flow()
+            if self.kill_signal.is_set(): # Check before resetting cluster
+                logger.info("Kill signal detected before resetting cluster. Aborting kickoff.")
+                return
+            
+            self.blackboard.phase = "Resetting Cluster"
+            self.reset_cluster()
 
-        self.blackboard.phase = "Completed"
-        logger.info("DevopsFlow kickoff completed.")
+            if self.kill_signal.is_set(): # Check before starting test and improve flow
+                logger.info("Kill signal detected before basic_test_and_improve_flow. Aborting kickoff.")
+                return
+            
+            self.blackboard.phase = "Basic Test and Improve"
+            await self.basic_test_and_improve_flow()
 
-        logger.info(self.blackboard.model_dump())
-        
+            self.blackboard.phase = "Completed"
+            logger.info("DevopsFlow kickoff completed.")
+
+            logger.info(self.blackboard.model_dump())
+        except Exception as e:
+            logger.error(f"Error during kickoff: {str(e)}", exc_info=True)
+            self.blackboard.phase = f"DevopsFlow failed {str(e)}"
+        finally:
+            self.kill_signal.set()
+            

@@ -77,38 +77,41 @@ window.RecordsList = {
     }
   },
   template: `
-    <q-card class="shadow-1">
-      <q-card-section class="bg-indigo-1">
-        <div class="text-h6"><q-icon name="history" class="q-mr-sm" />Records</div>
-      </q-card-section>
-      <q-separator />
-      <q-card-section v-if="hasRecords" class="scrollable-card-section" style="padding: 0; max-height: 95%; overflow-y: auto;">
-        <q-list bordered separator>
-            <q-item 
-              v-for="(record, index) in reversedRecords" 
-              :key="index"
-            >
-              <q-item-section avatar top>
-                <q-icon :name="getRecordTypeIcon(record.agent)" :color="getRecordTypeColor(record.agent)" size="sm" />
-              </q-item-section>
-              <q-item-section>
-                <q-item-label>
-                  <span class="text-weight-medium">{{ record.task_description || 'No description' }}</span>
-                  <q-badge :color="getRecordTypeColor(record.agent)" :label="record.agent || 'N/A'" class="q-ml-sm" />
-                  <q-badge v-if="record.created_at" color="grey" :label="formatTime(record.created_at)" class="q-ml-sm" dense />
-                </q-item-label>
-                <!-- Timestamp not available in this record type -->
-                <q-item-label v-if="record.details && Object.keys(record.details).length > 0" caption class="q-mt-xs">
-                  <div class="text-caption text-grey-7">Details:</div>
-                  <pre style="white-space: pre-wrap; word-wrap: break-word; background-color: #f9f9f9; padding: 6px; border-radius: 3px; font-size: 0.75em; max-height: 80px; overflow-y: auto;">{{ formatDetails(record.details) }}</pre>
-                </q-item-label>
-              </q-item-section>
-            </q-item>
-          </q-list>
-      </q-card-section>
-      <q-card-section v-else>
-        <div class="text-grey-6 text-center q-pa-md">No records available.</div>
-      </q-card-section>
-    </q-card>
+    <div class="records-panel-container">
+      <div class="q-pa-sm q-pl-md bg-grey-3 text-grey-9 text-weight-bold row items-center">
+        <q-icon name="article" class="q-mr-sm" />
+        <span>Records</span>
+      </div>
+      <q-list separator class="bg-white" style="max-height: calc(100vh - 40px); overflow-y: auto;">
+        <q-item 
+          v-for="(record, index) in reversedRecords" 
+          :key="index"
+          class="q-py-sm q-px-md"
+        >
+          <q-item-section avatar top class="q-pr-md q-pt-xs">
+            <q-icon :name="getRecordTypeIcon(record.agent)" :color="getRecordTypeColor(record.agent)" size="28px" />
+          </q-item-section>
+
+          <q-item-section>
+            <q-item-label class="text-weight-medium" style="word-break: break-word; white-space: normal;">
+              {{ record.task_description || 'No description' }}
+            </q-item-label>
+            <q-item-label caption class="q-mt-xs">
+              <q-badge :color="getRecordTypeColor(record.agent)" :label="record.agent || 'N/A'" />
+              <q-badge v-if="record.created_at" color="grey-7" :label="formatTime(record.created_at)" class="q-ml-sm" dense />
+            </q-item-label>
+            <q-item-label caption v-if="record.details" class="q-mt-sm">
+              <pre style="white-space: pre-wrap; word-wrap: break-word; font-family: inherit; font-size: 0.8em; color: #555;">{{ formatDetails(record.details) }}</pre>
+            </q-item-label>
+          </q-item-section>
+        </q-item>
+        <q-item v-if="!hasRecords">
+          <q-item-section class="text-center text-grey-6 q-py-lg">
+            <q-icon name="hourglass_empty" size="2em" class="q-mb-sm" />
+            <div>No records to display.</div>
+          </q-item-section>
+        </q-item>
+      </q-list>
+    </div>
   `
 };

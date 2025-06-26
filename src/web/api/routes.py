@@ -12,6 +12,7 @@ from flask import jsonify, request
 from src.crewai.devops_flow.DevopsFlow import DevopsFlow
 import src.services_registry.services as services
 from src.web import state
+import asyncio
 from . import api_bp
 
 
@@ -48,7 +49,7 @@ def init_devops_flow() -> Dict[str, Any]:
 
         def run_devops_flow():
             # The kickoff method starts the main process
-            state.devops_flow.kickoff()
+            asyncio.run(state.devops_flow.kickoff())
 
         
         state.devops_flow_thread = threading.Thread(target=run_devops_flow)

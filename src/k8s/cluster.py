@@ -2,13 +2,17 @@ from kubernetes import client, config, utils
 from kubernetes.client.rest import ApiException
 from pathlib import Path
 import os
+import subprocess
+import logging
+
 
 class ClusterManager:
-    def __init__(self, base_dir: str = "temp"):
+    def __init__(self, base_dir: str = "temp", dir_path: str = ""):
         # Load kubeconfig from default location
         config.load_kube_config()
         self.k8s_client = client.ApiClient()
         self.base_dir = base_dir
+        self.dir_path = dir_path
 
     def create_from_yaml(self, file_path: str):
         """Create Kubernetes resources from a YAML file.
@@ -23,7 +27,7 @@ class ClusterManager:
             FileNotFoundError: If the YAML file doesn't exist
             RuntimeError: If there's an error applying the YAML
         """
-        full_path = Path(self.base_dir) / file_path
+        full_path = Path(self.base_dir) / self.dir_path / file_path
         return utils.create_from_yaml(self.k8s_client, str(full_path), verbose=True)
 
     def delete_from_yaml(self, file_path: str) -> str:
@@ -40,7 +44,7 @@ class ClusterManager:
         """
         import subprocess
         try:
-            full_path = Path(self.base_dir) / file_path
+            full_path = Path(self.base_dir) / self.dir_path / file_path
             result = subprocess.run(
                 ["kubectl", "delete", "-f", str(full_path)],
                 capture_output=True,
@@ -92,11 +96,7 @@ class ClusterManager:
             try:
                 self.create_namespace(ns)
             except Exception as exc:
-                # Log and continue with others
-                import logging
-                logging.getLogger(__name__).error(
-                    "Failed to create namespace %s: %s", ns, exc
-                )
+                raise exc
 
     def create_from_directory(self) -> str:
         """
@@ -109,20 +109,16 @@ class ClusterManager:
         Raises:
             RuntimeError: If kubectl apply fails
         """
-        import subprocess
-        import logging
-
         base_dir = Path(self.base_dir)
         try:
             result = subprocess.run(
-                ["kubectl", "apply", "-R", "-f", str(base_dir)],
+                ["kubectl", "apply", "-R", "-f", str(base_dir / self.dir_path)],
                 capture_output=True,
                 text=True,
                 check=True
             )
             return result.stdout
         except subprocess.CalledProcessError as e:
-            logging.getLogger(__name__).error(f"kubectl apply failed: {e.stderr}")
             raise RuntimeError(f"kubectl apply failed: {e.stderr}")
 
     def delete_from_directory(self) -> str:
@@ -136,18 +132,14 @@ class ClusterManager:
         Raises:
             RuntimeError: If kubectl delete fails
         """
-        import subprocess
-        import logging
-
         base_dir = Path(self.base_dir)
         try:
             result = subprocess.run(
-                ["kubectl", "delete", "-R", "-f", str(base_dir)],
+                ["kubectl", "delete", "-R", "-f", str(base_dir / self.dir_path)],
                 capture_output=True,
                 text=True,
                 check=True
             )
             return result.stdout
         except subprocess.CalledProcessError as e:
-            logging.getLogger(__name__).error(f"kubectl delete failed: {e.stderr}")
             raise RuntimeError(f"kubectl delete failed: {e.stderr}")

@@ -9,7 +9,7 @@ const Quasar = window.Quasar;
 
 const app = createApp({
   template: `
-    <q-layout view="hHh Lpr lFf">
+    <q-layout view="hHh lpr fff">
       <q-header elevated class="bg-primary text-white">
         <q-toolbar>
           <q-toolbar-title class="text-h5 text-weight-bold">
@@ -35,11 +35,38 @@ const app = createApp({
           </q-tabs>
         </q-toolbar>
       </q-header>
+
+      <!-- Left Drawer (for Blackboard) -->
+      <q-drawer v-if="isBlackboardRoute" side="left" v-model="leftDrawerOpen" bordered :width="400" class="bg-grey-1 q-pa-md">
+        <events-panel 
+          v-if="blackboardEvents && blackboardEvents.length > 0"
+          :events="blackboardEvents"
+          :max-chars="300"
+          class="full-height-card"
+        ></events-panel>
+        <div v-else class="text-center q-pa-md text-grey-6">
+          <q-icon name="hourglass_empty" size="2em" />
+          <div>No events yet.</div>
+        </div>
+      </q-drawer>
+
+      <!-- Right Drawer (for Blackboard) -->
+      <q-drawer v-if="isBlackboardRoute" side="right" v-model="rightDrawerOpen" bordered :width="400" class="bg-grey-1 q-pa-md">
+        <records-list 
+          v-if="blackboardRecords && blackboardRecords.length > 0"
+          :records="blackboardRecords"
+          class="full-height-card"
+        ></records-list>
+        <div v-else class="text-center q-pa-md text-grey-6">
+          <q-icon name="hourglass_empty" size="2em" />
+          <div>No records yet.</div>
+        </div>
+      </q-drawer>
       
       <q-page-container>
-        <router-view v-slot="{ Component }">
+        <router-view v-slot="{ Component, route }">
           <transition name="fade" mode="out-in">
-            <component :is="Component" />
+            <component :is="Component" :key="route.path" @update-drawers="updateBlackboardDrawers" />
           </transition>
         </router-view>
       </q-page-container>
@@ -48,9 +75,51 @@ const app = createApp({
   
   data() {
     return {
-      currentTab: 'home'
+      currentTab: 'home',
+      leftDrawerOpen: true,
+      rightDrawerOpen: true,
+      blackboardEvents: [],
+      blackboardRecords: [],
     };
-  }
+  },
+
+  components: {
+    'events-panel': window.components?.EventsPanel || { template: '<div></div>' },
+    'records-list': window.RecordsList || { template: '<div></div>' },
+  },
+
+  computed: {
+    isBlackboardRoute() {
+      return this.$route.path === '/blackboard';
+    }
+  },
+
+  watch: {
+    '$route.path': {
+      immediate: true,
+      handler(newPath) {
+        // Set the current tab based on the route name still
+        this.currentTab = this.$route.name || 'home';
+        
+        // Explicitly show or hide drawers based on the path
+        if (newPath === '/blackboard') {
+          this.leftDrawerOpen = true;
+          this.rightDrawerOpen = true;
+        } else {
+          this.leftDrawerOpen = false;
+          this.rightDrawerOpen = false;
+        }
+      }
+    }
+  },
+
+  methods: {
+    updateBlackboardDrawers(data) {
+      const events = data?.events?.events || [];
+      this.blackboardEvents = events.slice().reverse();
+      this.blackboardRecords = data?.records || [];
+    }
+  },
 });
 
 // Global error handler

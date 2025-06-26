@@ -30,7 +30,11 @@ preliminary_structure:
     Use concrete, non-generic wording; omit tags, registries, versions, and
     implementation minutiae. Another senior engineer should be able to model the
     cluster without further clarification.
-  markdown: true
+
+    Ensure to do not include duplicated functions in the manifests.
+
+    The output NEEDS to be the plain text, not a markdown document, and not a reference
+    tp a previous file. The last answer is the report integrally.
   max_retries: 3
   agent: devops_researcher
 
@@ -38,7 +42,7 @@ structured_preliminary_structure:
   description: >
     **Goal**  
     Produce the *authoritative manifest index* for the test environment in
-    machine-readable form.
+    machine-readable form. Include only YAML files in the index.
 
     **Methodology**
 
@@ -59,6 +63,8 @@ structured_preliminary_structure:
     • **file_path** (string) repository-relative YAML file name  
     • **namespace** (string) Kubernetes namespace  (if the manifest does not belong to any namespace, use "N/A")
     • **description** (string) succinct description  
+
+    Ensure to do not include duplicated functions in the manifests.
 
   max_retries: 3
   agent: devops_researcher

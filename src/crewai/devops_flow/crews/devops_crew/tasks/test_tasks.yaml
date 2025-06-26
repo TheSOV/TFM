@@ -2,26 +2,21 @@ popeye_scan:
   description: >
     **Goal**  
     Run the **Popeye** diagnostic tool against the current **test** cluster and
-    produce a human-readable Markdown digest of all findings.
+    produce a human-readable plain text digest of all findings.
 
     **Execution Workflow (async-safe)**
 
     1. Invoke the Popeye action with default lint level, targeting the active
        kube-context for the *test* cluster.  
     2. Capture Popeye's report (scores, lints, warnings, errors).  
-    3. Boil the output down to a concise Markdown summary:  
-       • group findings by *Kind* → *Namespace* → *Resource*  
-       • include Popeye's severity (fatal / error / warn / info)  
-       • add a one-line human explanation of each item.  
-    4. Do **not** propose fixes; just report.
+    3. Boil the output down to a concise plain text summary:  
+       - Include for each problem all the relevant information that Popeye provides.
+    4. Do **not** propose fixes; just report the errors with the 
+    most useful information to the devops engineer.
 
-    Classify the issues using the following severity rules:
-
-    • **HIGH** - Blocks core functionality (apply failures, pods never *Ready*,
-      critical micro-service outage).  
-    • **MEDIUM** - Security or configuration risk that could hurt prod but does
-      not stop pods from becoming *Ready*.  
-    • **LOW** - Warnings, best-practice gaps, cosmetic lints.
+    <Important>
+    Ignore the pods owned by Kubernetes core system.
+    </Important>
 
 
     <blackboard>
@@ -32,8 +27,8 @@ popeye_scan:
     {feedback}
     </feedback>
   expected_output: >
-    Well-structured summary of Popeye issues in Markdown listing every Popeye issue with:  
-    • Kind / Namespace / Name • Popeye severity • One-sentence explanation.
+    A detailed plain text summary of the cluster issues, describing in detail the problem
+    and analyzing deeply the cause of each issue.
   max_retries: 2
   async_execution: true
   agent: devops_tester   
@@ -44,7 +39,7 @@ kubectl_status_check:
     Use raw **kubectl** commands to inspect cluster health and produce practical
     guidance on reading pod and node status, events, and logs.
 
-    **Execution Workflow (async-safe)**
+    **Execution Workflow**
 
     You can run commands like the following, at your choice, until you are convinced 
     you have enough information to provide a concise health snapshot:
@@ -91,32 +86,19 @@ kubectl_status_check:
 
     • kubectl get events --sort-by='.lastTimestamp' → cluster-level recent warnings and errors
 
-    Summarise key indicators that signal trouble:
-    • CrashLoopBackOff, ImagePullBackOff, OOMKilled, CreateContainerConfigError
-    • NodeNotReady, MemoryPressure, DiskPressure, NetworkUnavailable
-    • PVC Pending, FailedMount, ResizePending
-    • ENDPOINTS <none> in service
-    • Ingress stuck without IP or returns 404/default backend
+    Execute commands for ALL the available resources in the cluster, check the blackboard for 
+    more information.
 
-    Provide actionable tips, not full solutions—e.g.:
-    • ImagePullBackOff → check image name/tag, registry credentials, DNS resolution
-    • PVC Pending → verify storage class, capacity, node affinity
-    • 0/3 READY in a deploy → look at pod events (probe failures, crash loops)
-    • Ingress has no IP → check cloud controller, annotations, and LB quotas
-    • DiskPressure → clean up disk or reschedule pods to healthy nodes
-    • Service endpoints missing → check pod labels match service selector
+    Do **not** propose fixes; just report the errors with the 
+    most useful information to the devops engineer.
 
-    Classify the issues using the following severity rules:
+    Then generate a report with the information collected in the logs that represents issues for the
+    cluster. Ensure to add all the details shown in the logs not only the last line. All the information
+    that is useful to debug and solve the issue should be included.
 
-    • **HIGH** - Blocks core functionality (apply failures, pods never *Ready*,
-      critical micro-service outage).  
-    • **MEDIUM** - Security or configuration risk that could hurt prod but does
-      not stop pods from becoming *Ready*.  
-    • **LOW** - Warnings, best-practice gaps, cosmetic lints.
-
-    Execute commands for ALL the available resources in the cluster.
-
-    Consolidate everything into Markdown.
+    <Important>
+    Ignore the pods owned by Kubernetes core system.
+    </Important>
 
     <blackboard>
     {blackboard}
@@ -127,91 +109,148 @@ kubectl_status_check:
     </feedback>
 
   expected_output: >
-    Markdown containing:  
-    • A health snapshot (status for all the resources).  
-    • A summary of the causes of non-ready nodes and non-ready pods or other issues.
-    • Brief comments
-    • No need to include commands, or other generic information, only health snapshot and issues summary.
-
-    Include relevant information to help the devops engineer to understand the issues and take action.
-  max_retries: 3
+    A detailed plain text summary of the cluster issues, describing in detail the problem
+    and analyzing deeply the cause of each issue.
   async_execution: true
+  max_retries: 3
   agent: devops_tester   
 
 aggregate_cluster_issues:
   description: >
     **Goal**  
-    Correlate the Popeye and kubectl findings, consult the researcher if needed,
-    and draft a **comprehensive issue list** with severity ratings.
+    In the context of the task, you will have the Popeye and kubectl findings, 
+    consult the researcher if needed, and draft a **comprehensive issue list**. 
+    In this step you dont need to execute any tool, just use the data received 
+    as context from the previous steps.
 
-    **Severity Rules**
-
-    • **HIGH** - Blocks core functionality (apply failures, pods never *Ready*,
-      critical micro-service outage).  
-    • **MEDIUM** - Security or configuration risk that could hurt prod but does
-      not stop pods from becoming *Ready*.  
-    • **LOW** - Warnings, best-practice gaps, cosmetic lints.
+    In this step set all issues as high severity. We will classify them in a later step.
 
     **Deliverable**
 
     For *each* issue provide:  
     • **issue** - short technical label.  
+    * ** filepath ** - path of the file where the issue is located. Use the path mentioned in the
+        <blackboard>  
     • **problem_description** - why it matters (1-2 sentences).  
     • **possible_manifest_file_path** - if traceable (`deployment-api.yaml`, etc.).  
-    • **severity** - High | Medium | Low.
+    • **severity** - always High in this step. We will classify them in a later step. 
     • **observations** - Any additional observations or comments that might result useful to solve the issue.
-
+  
     **Execution Workflow**
 
     1. Parse outputs of *popeye_scan* and *kubectl_status_check*.  
-    2. Merge duplicate or related items.  
+    2. **Analyse the presented issues, and merge duplicate or related items into one comprehensive,
+    well documented, issue.**  
     3. If missing context, query **devops_researcher** once.  
     4. Read the involved manifests and try to understand the context of the issue.
-    5. Produce a clean Markdown checklist of issues.
+    5. Produce a clean plain text checklist of issues.
 
-    Focus on the most critical issues first.
+    <Important>
+    Ignore the pods owned by Kubernetes core system.
+    </Important>
+
+    <blackboard>
+    {blackboard}
+    </blackboard>
 
     <feedback>
     {feedback}
     </feedback>
 
   expected_output: >
-    Comprehensive Markdown list of issues with: issue, problem_description, 
-    possible_manifest_file_path, severity, observations, and any other relevant information.
+    Comprehensive, well documented and deduplicated plain text list of issues with: issue, 
+    problem_description, possible_manifest_file_path, severity, observations, and any other 
+    relevant information.
 
-    Include relevant information to help the devops engineer to understand the issues and take action.
+    The description of the problem must contain a detailed description of the issue, 
+    analyzing deeply the cause of each issue.
+  
   max_retries: 3
   context:
     - popeye_scan
     - kubectl_status_check
   agent: devops_tester
 
-issues_to_json:
+classify_cluster_issues:
   description: >
-    **Goal**  
-    Transform the Markdown issue list into a strict JSON array for automated
-    consumption.
+    **Goal**
+    Classify the issues into High, Medium and Low severity
+    following the severity rules.
 
-    **Execution Workflow**
 
-    1. Parse each Markdown bullet from *aggregate_cluster_issues*.  
-    2. For every entry emit:  
-       `{ "issue": "...", "problem_description": "...", "possible_manifest_file_path": "...", "severity": "High" | "Medium" | "Low", "observations": "..." }`  
-    3. Preserve original order.  
-    4. Return **only** the JSON—no extra prose.
+    **Severity Rules**
 
-    Focus on the most critical issues first.
+    • **HIGH** - Blocks core functionality (apply failures, pods never *Ready*,
+      critical micro-service outage) **Only if the issue prevents the cluster from working**.
+      No other issues should be classified as high.  
+    • **MEDIUM** - Security or configuration risk that could hurt prod but does
+      not stop pods from becoming *Ready*.  
+    • **LOW** - Warnings, best-practice gaps, cosmetic lints.
+
+    ** End of Severity Rules**
 
   expected_output: >
-    A JSON array of issue objects with keys: issue, 
-    problem_description, possible_manifest_file_path, severity, observations.
-
-    Include relevant information to help the devops engineer to understand the issues and take action.
+    The exact same issues list, with all the same data, and properly classified.
+    
   max_retries: 3
   context:
     - aggregate_cluster_issues
   agent: devops_tester
 
+cluster_analyze_issues:
+  description: >
+    **Goal**
+    Analyze the issues from a top level perspective, 
+    identify manifests that need to be fixed,
+    and provide a concise technical log capturing problem summary,
+    redefining the issues list into a precise, actionable list of manifests to be fixed,
+    along with root causes and symptoms.
+
+    **Execution Workflow**
+
+    1. Analyze the issues list as a whole, analyze the blackboard and last steps
+    recorded, then, relate the existent issues with the manifests that need to be fixed, with details 
+    of the errors and symptoms and the  content that should contain each manifest, in the maifests 
+    section on the blackboard.
+
+    2. Read the content of the implicated yaml files before taking decisions, to ensure the manifest is 
+    not duplicated, and that each issue points to the correct manifest.
+
+    3. If a problem affect multiple manifests, generate a issues per manifest, with the required information
+    and the same severity. Ensure that each issue is only related to one manifest, and generate as many
+    issues as needed. Ensure to add in this case relevant information, so that when fixing the issue, 
+    the manifest is not duplicated and both files are fixed accordingly. If a problem, apparently affects
+    two files, but in reality the problems is a cascading effect, generate a single issue for the root cause
+    in the yaml file that is the root cause.
+
+    4. Ensure to mark each function in the corresponding manifest. Check that duplicated manifests will not 
+    be created, by including multiple manifest in the same yaml file, if a specific yaml exists
+    for that manifest.
+
+    You have the capacity to:
+    - reassign a issue to another manifest, if needed. 
+    - reassign a issue to another severity, if needed. 
+    - merge issues, if needed. 
+    - split issues, if needed. 
+    - delete issues, if needed. 
+    - add new issues, if needed. 
+
+    You can also use all the tools at hand to investigate the issue and understand the context 
+    of the issue.
+
+    <blackboard>
+    {blackboard}
+    </blackboard>
+    
+  expected_output: >
+    A concise technical issue list capturing problem summary,
+    redefining the issues list into a precise, actionable list of manifests to be fixed,
+    along with root causes and symptoms.
+     
+  max_retries: 3
+  context:
+    - classify_cluster_issues
+  agent: devops_tester
 
 log_cluster_issues:
   description: >
@@ -221,9 +260,8 @@ log_cluster_issues:
   expected_output: >
     In no more that 50 words:  
     • Number of issues found and severity mix.  
-    • Most critical blocker.  
-    • High-level advice for resolution path.  
-  max_retries: 2
+    • Most critical blocker.   
+  max_retries: 3
   context:
-    - issues_to_json
+    - cluster_analyze_issues
   agent: devops_tester

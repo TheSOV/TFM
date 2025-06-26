@@ -1,0 +1,145 @@
+per_resource_research:
+  description: >
+    **Goal**  
+    Research and design a production-grade Kubernetes manifest for the  
+    **<resource>** referenced in the **<blackboard>**.  
+    The deliverable must anticipate and mitigate the most common volume-related
+    failures—e.g. read-only mounts, missing PersistentVolumeClaims (PVCs),
+    ownership/permission mismatches, or ephemeral storage used for
+    stateful data, and include, if applies, the specific information about the image being used
+    that covers the previous research and any other image-specific data required.
+    The final document should be *nearly deployable*,
+    needing only environment-specific substitutions (namespaces, storage
+    classes, resource sizes, etc.).
+
+    **Methodology**
+
+    1. **Extract Context**  
+       - Parse the **<blackboard>** for:
+         - Resource kind (Deployment, StatefulSet, Job, DaemonSet, etc.).  
+         - Container image(s), tags/digests, and declared user (`USER`)
+           directives.  
+         - Stated volume needs, data paths, temp/cache paths, and
+           configuration files.  
+         - Non-volume requirements (ports, probes, resource requests) that
+           could influence volume choices (e.g. log directories).  
+
+    2. **Deep-Dive Research (per resource type and specific for the current image being used, if applies)**  
+       - Standard and optional spec fields affecting volumes:
+         - `volumes`, `volumeMounts`, `volumeClaimTemplates`
+           (StatefulSet), projected volumes, `subPath`, access modes.  
+       - Default behaviors:
+         - Pod restart policies, identity retention, scheduling guarantees,
+           rolling update mechanics.  
+       - Interactions with `securityContext` (`runAsUser`, `fsGroup`,
+         `readOnlyRootFilesystem`) that change filesystem ownership or
+         writability.  
+       - Storage backend constraints (ReadWriteOnce vs ReadWriteMany,
+         RWOP, topology hints).  
+       - Position and content of the ConfigMap depending on the root
+       access level.
+       - Analyze those aspects for the current image (if applies)
+
+    3. **Identify Typical Pitfalls**  
+       - Writes to ConfigMap/Secret volumes for .  
+       - PVC reuse across replicas with RWO backends.  
+       - Volume name mismatches or omissions.  
+       - Shadowing image files by mounting over populated directories.  
+       - Non-root containers lacking write permissions on root-owned
+         volumes.  
+       - Enabling `readOnlyRootFilesystem` without providing writable
+         scratch space.  
+       - Adding config values to the ConfigMap that container cant use
+         due to it privilege level.
+       - Analyze those aspects for the current image (if applies)
+       - Define the capabilities that will be dropped and that will be added to the cluster
+
+    4. **Synthesize Best-Practice Recommendations**  
+       - Volume type selection matrix (PVC vs `emptyDir` vs projected).  
+       - Access-mode guidelines.  
+       - Ownership/permission recipes (`fsGroup`, init-container `chown`,
+         etc.).  
+       - Clean-up and retention policies for StatefulSet PVCs.  
+
+    5. **Draft Preliminary YAML**  
+       - Start from a minimal, valid skeleton for the detected resource
+         kind.  
+       - Add fully-explained `volumes` / `volumeMounts` sections,
+         annotated with inline comments for clarity.  
+       - Include securityContext tuned to container UID/GID.  
+       - Stub or inject ConfigMaps/Secrets with correct `readOnly`
+         semantics. For secrets always use stringData instead of data.
+       - Mark any unknowns (`## TODO`) that require operator input
+         (e.g. storageClassName).  
+
+    6. **Self-Validation & Handoff**  
+       - Cross-check that every `volumeMount.name` has a matching entry in
+         `volumes`/`volumeClaimTemplates`.  
+       - Ensure no read-write path is backed by a read-only volume.  
+       - Confirm Pod-level vs container-level securityContext placement.  
+       - Provide next-step guidance (e.g. run `kubectl apply
+         --dry-run=client -o yaml` for schema validation).  
+
+    **Example Blackboard Parsing**  
+    ```
+    image: myorg/myapp:1.0
+    user: "1000"
+    dataDir: /var/lib/myapp/data
+    configFile: /etc/myapp/config.yaml
+    cacheDir: /var/cache/myapp
+    resourceKind: StatefulSet
+    replicas: 3
+    ```
+    would translate into a StatefulSet with:  
+    - PVC-backed volume at `/var/lib/myapp/data`  
+    - `emptyDir` at `/var/cache/myapp`  
+    - ConfigMap (read-only) at `/etc/myapp/config.yaml`  
+    - `fsGroup: 1000` to align permissions.
+
+    <Important>
+    - During this step, yaml files has been created yet, so do not use the read_file tool.
+    - Ensure that you research about the correct resource, given in the <resource> block.
+    - Ensure that each file contains only the elements and configurations that are relative to it.
+    Never mix two resources in the same yaml file during the planification steps. Ensure that 
+    each file is self-contained and clear.
+    </Important>
+
+    The resource you must analyze is:
+    <resource>
+    {resource}
+    </resource>
+
+    <blackboard>
+    {blackboard}
+    </blackboard>
+
+    <feedback>
+    {feedback}
+    </feedback>
+  expected_output: >
+    A plain text document containing:
+
+    1. **Resource Overview** - summary table (kind, replicas, images,
+       volume needs).  
+    2. **Volume & Permissions Analysis** - narrative explaining each
+       volume choice, access mode, securityContext linkage, plus a
+       checklist of common pitfalls and mitigations. Include image-specific 
+       information if applies. 
+    3. **Security Context Rationale** - why specific `runAsUser` /
+       `fsGroup` / `readOnlyRootFilesystem` settings were chosen.  
+    4. **Best-Practice Recommendations** - actionable bullet list for
+       operators (storage class hints, clean-up policies, monitoring
+       hooks).  
+    5. **Preliminary YAML Manifest** - fully indented, commented, and
+       nearly deployable (code-fenced).  
+       - MUST compile without validation errors if missing TODO values are
+         supplied.  
+       - All volume names must match their mounts.  
+       - Read-only vs read-write flags explicitly shown.  
+       - Inline comments highlight why each volume exists and how it
+         addresses a specific risk.
+
+    The output NEEDS to be the plain text, not a markdown document, and not a reference
+    tp a previous file. The last answer is the report integrally.
+  max_retries: 3
+  agent: devops_researcher

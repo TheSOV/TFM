@@ -8,10 +8,7 @@ console.log('PlansDisplay.js: typeof window.marked =', typeof window.marked);
 window.PlansDisplay = {
   name: 'PlansDisplay',
   props: {
-    basicPlan: {
-      type: String,
-      default: ''
-    },
+
     advancedPlan: {
       type: String,
       default: ''
@@ -57,24 +54,17 @@ window.PlansDisplay = {
       return '';
     },
 
-    hasBasicPlan() {
-      return !!this.basicPlan;
-    },
     hasAdvancedPlan() {
       return !!this.advancedPlan;
     }
   },
   methods: {
     openPlanDialog(type) {
-      if (type === 'basic' && this.hasBasicPlan) {
-        this.planTitle = 'Basic Plan';
-        this.planContent = this.basicPlan;
-        this.showDialog = true;
-      } else if (type === 'advanced' && this.hasAdvancedPlan) {
+      if (type === 'advanced') {
         this.planTitle = 'Advanced Plan';
         this.planContent = this.advancedPlan;
-        this.showDialog = true;
       }
+      this.showDialog = true;
     }
   },
   template: `
@@ -84,14 +74,7 @@ window.PlansDisplay = {
       </q-card-section>
       <q-separator />
       <q-card-section class="column q-gutter-y-md scrollable-card-section">
-        <q-btn 
-          label="Basic Plan" 
-          color="info" 
-          @click="openPlanDialog('basic')" 
-          :disable="!hasBasicPlan" 
-          icon="visibility"
-          stretch
-        />
+
         <q-btn 
           label="Advanced Plan" 
           color="purple" 

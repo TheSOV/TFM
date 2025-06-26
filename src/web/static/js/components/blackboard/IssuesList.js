@@ -59,45 +59,51 @@ window.IssuesList = {
     }
   },
   template: `
-    <q-card class="shadow-1">
-      <q-card-section style="background-color: rgba(193, 0, 21, 0.45);">
+    <q-card class="shadow-1 full-height-card">
+      <q-card-section class="bg-red-8 text-white">
         <div class="text-h6"><q-icon name="error" class="q-mr-sm" />Issues</div>
       </q-card-section>
       <q-separator />
       <q-card-section v-if="hasIssues" class="scrollable-card-section" style="padding: 0;">
-        
-          <q-list bordered separator>
-            <q-item 
-              v-for="(issue, index) in issues" 
-              :key="'issue-' + index"
-            >
-              <q-item-section avatar top>
-                <q-icon :name="getSeverityIcon(issue.severity)" :color="getSeverityColor(issue.severity)" size="md" />
-              </q-item-section>
-              <q-item-section>
-                <q-item-label class="text-weight-bold">
-                  {{ issue.issue || 'No title' }}
-                  <q-badge v-if="issue.created_at" color="grey" :label="formatTime(issue.created_at)" class="q-ml-sm" dense />
-                </q-item-label>
-                <q-item-label caption lines="3">{{ issue.problem_description || 'No description' }}</q-item-label>
-                <q-item-label caption v-if="issue.possible_manifest_file_path" class="q-mt-sm">
-                  <q-icon name="description" size="xs" class="q-mr-xs" />
-                  File: {{ issue.possible_manifest_file_path }}
-                </q-item-label>
-                <q-item-label caption v-if="issue.observations">
-                  <q-icon name="comment" size="xs" class="q-mr-xs" />
-                  {{ issue.observations }}
-                </q-item-label>
-              </q-item-section>
-              <q-item-section side top v-if="issue.severity">
-                <q-badge :color="getSeverityColor(issue.severity)" :label="issue.severity" />
-              </q-item-section>
-            </q-item>
-          </q-list>
-        
+        <q-list separator>
+          <q-item 
+            v-for="(issue, index) in issues" 
+            :key="'issue-' + index"
+            class="q-pa-md column"
+          >
+            <!-- Header Section -->
+            <div class="row items-center q-mb-sm full-width">
+              <q-icon :name="getSeverityIcon(issue.severity)" :color="getSeverityColor(issue.severity)" size="sm" class="q-mr-md" />
+              <div class="col text-weight-bold ellipsis">
+                {{ issue.issue || 'No title' }}
+                <q-tooltip>{{ issue.issue }}</q-tooltip>
+              </div>
+              <q-badge :color="getSeverityColor(issue.severity)" :label="issue.severity" class="q-ml-md" />
+              <q-badge v-if="issue.created_at" color="grey-7" :label="formatTime(issue.created_at)" class="q-ml-sm" dense />
+            </div>
+
+            <!-- Content Section -->
+            <div class="full-width q-pl-xl">
+              <div v-if="issue.problem_description" class="text-body2 text-grey-8 q-mb-sm" style="white-space: pre-wrap; word-wrap: break-word;">
+                {{ issue.problem_description }}
+              </div>
+              <div v-if="issue.possible_manifest_file_path" class="text-caption text-grey-7 q-mb-xs">
+                <q-icon name="description" size="xs" class="q-mr-xs" />
+                <strong>File:</strong> {{ issue.possible_manifest_file_path }}
+              </div>
+              <div v-if="issue.observations" class="text-caption text-grey-7">
+                <q-icon name="comment" size="xs" class="q-mr-xs" />
+                <strong>Observations:</strong> {{ issue.observations }}
+              </div>
+            </div>
+          </q-item>
+        </q-list>
       </q-card-section>
-      <q-card-section v-else>
-        <div class="text-grey-6 text-center q-pa-md">No issues reported.</div>
+      <q-card-section v-else class="flex flex-center text-grey-6 q-pa-md">
+        <div>
+          <q-icon name="check_circle_outline" size="2em" class="block q-mb-sm" />
+          No issues reported.
+        </div>
       </q-card-section>
     </q-card>
   `

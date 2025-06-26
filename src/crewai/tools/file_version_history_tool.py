@@ -141,11 +141,9 @@ class FileVersionHistoryTool(BaseTool):
             Exception: If there's an error retrieving the version history
         """
         try:
-            # Convert path separators to OS-specific format
-            file_path = file_path.replace("/", os.path.sep)
-            
-            # Check if file exists
-            full_path = os.path.join(self._base_dir, file_path)
+            # Normalize the path and ensure it's relative to base_dir
+            file_path = os.path.normpath(file_path).replace('\\', '/').lstrip('/')
+            full_path = os.path.normpath(os.path.join(self._base_dir, file_path))
             if not os.path.exists(full_path):
                 return {
                     "success": False,
@@ -244,11 +242,9 @@ class FileVersionDiffTool(BaseTool):
                 version indices are invalid
         """
         try:
-            # Convert path separators to OS-specific format
-            file_path = file_path.replace("/", os.path.sep)
-            
-            # Check if file exists
-            full_path = os.path.join(self._base_dir, file_path)
+            # Normalize the path and ensure it's relative to base_dir
+            file_path = os.path.normpath(file_path).replace('\\', '/').lstrip('/')
+            full_path = os.path.normpath(os.path.join(self._base_dir, file_path))
             if not os.path.exists(full_path):
                 return {
                     "success": False,
@@ -369,11 +365,9 @@ class FileVersionRestoreTool(BaseTool):
                 version index is invalid
         """
         try:
-            # Convert path separators to OS-specific format
-            file_path = file_path.replace("/", os.path.sep)
-            
-            # Check if file exists
-            full_path = os.path.join(self._base_dir, file_path)
+            # Normalize the path and ensure it's relative to base_dir
+            file_path = os.path.normpath(file_path).replace('\\', '/').lstrip('/')
+            full_path = os.path.normpath(os.path.join(self._base_dir, file_path))
             if not os.path.exists(full_path):
                 return {
                     "success": False,

@@ -30,6 +30,8 @@ class PopeyeScanTool(BaseTool):
         "Run a Popeye scan on a Kubernetes cluster to detect potential issues "
         "with deployments, pods, configurations, and other resources. "
         "Returns a detailed report of findings and recommendations."
+        "It is recommended to run this tool in the specific namespace where the "
+        "you need to check the resources."
     )
     args_schema: Type[BaseModel] = PopeyeScanInput
     
@@ -46,12 +48,12 @@ class PopeyeScanTool(BaseTool):
         super().__init__(**kwargs)
         self._popeye_client = PopeyeScanClient(popeye_path=popeye_path)
     
-    def _run(self, namespace: str = "all") -> str:
+    def _run(self, namespace: str) -> str:
         """
         Run a Popeye scan on the specified namespace.
         
         Args:
-            namespace: Kubernetes namespace to scan (default: 'all')
+            namespace: Kubernetes namespace to scan
             
         Returns:
             str: JSON string containing the scan results

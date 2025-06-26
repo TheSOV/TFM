@@ -17,6 +17,10 @@ import logging
 from threading import Timer
 from src.web.app import app
 
+logging.basicConfig(level=logging.INFO)
+logging.getLogger('flask').setLevel(logging.WARNING)
+logging.getLogger('werkzeug').setLevel(logging.WARNING)
+
 from dotenv import load_dotenv
 load_dotenv(override=True)
 
@@ -45,7 +49,6 @@ def start_mlflow_server():
 
 def main():
     """Launch the DevopsFlow web server with command line options."""
-    logging.basicConfig(level=logging.INFO)
     
     # Parse command line arguments
     parser = argparse.ArgumentParser(description="Run the DevopsFlow web server.")

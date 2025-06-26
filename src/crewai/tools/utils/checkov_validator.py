@@ -37,7 +37,7 @@ def import_checkov():
 def run_checkov_scan(
     file_path: Path, 
     framework: str = "kubernetes",
-    skip_checks: Optional[List[str]] = None
+    skip_checks: Optional[List[str]] = ["CKV2_K8S_*"]
 ) -> Dict[str, Any]:
     """
     Run Checkov scan on a file or directory.

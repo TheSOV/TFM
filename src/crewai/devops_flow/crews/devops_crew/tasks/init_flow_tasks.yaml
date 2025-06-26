@@ -2,9 +2,10 @@ gather_information:
   description: >
     **Goal - draft the manifest blueprint**  
     Extract from *user_request* only the architectural and operational facts
-    needed to write Kubernetes YAML. You must comply with the requests of the user,
-    and if there is missing information, assume the best practices and security. But user 
-    requests are the priority.
+    needed to write Kubernetes YAML. Ensure to include all the files  that might be 
+    required to complete a full production grade application, even if in later stages
+    you will leave some of them empty or with default values. You wont be able to add
+    new files after this task.
 
     **What you must enumerate**
 
@@ -19,7 +20,8 @@ gather_information:
       HPA/VPA, ConfigMap, RBAC, NetworkPolicy, ServiceAccount,
       Volumes/PVC, AdmissionPolicy.  
     • **Configuration Surface** - prelim Env Vars, ConfigMaps vs. Secrets
-      (do *not* mix); mount paths; projected tokens.  
+      (do *not* mix, and for secrets always use stringData instead of data);
+      mount paths; projected tokens.  
     • **Scalability & HA** - initial replica counts + HPA trigger metric
       (CPU / memory), pod anti-affinity, upgrade strategy.  
     • **Networking & Routing** - ClusterIP vs headless; ingress class; egress
@@ -29,6 +31,8 @@ gather_information:
       (runAsNonRoot, fsGroup); image-signature policy.    
     • **External Dependencies** - DBs, caches, cloud services.  
     • **Platform Constraints** - ARM/GPU, OS distro, container runtime.  
+    • **Namespaces** - define the namespaces that will be used in the cluster
+    • **Capabilities** - define the capabilities that will be dropped and that will be added to the cluster
     • **Manifests Layout** - repo tree *for test only*; no overlays:
       ```
       /manifests/
@@ -37,14 +41,19 @@ gather_information:
       ```  
       Use GitOps-friendly directory names (workloads/, network/, rbac/).
 
-    *If any datum is missing, ping you can search, otherwise fallback to
+    *If any datum is missing, you can search, otherwise fallback to
     published best practice.*
 
     <Important>
-       You can use only images from DockerHub. If the user requests a specific image, 
+       - You can use only images from DockerHub. If the user requests a specific image, 
        you can use it, but if the image is not available, you must use an alternative 
        image from DockerHub, searching with the available web and search tools. 
-       It is totally forbidden to use images from other repositories.
+
+       - It is totally forbidden to use images from other repositories.
+
+       - Ensure to specify for each tentative yaml file, the elements and configurations
+       that are relative to it. Never mix two resources in the same yaml file during the 
+       planification steps.
     </Important>
 
     <blackboard>
@@ -66,9 +75,13 @@ research_project:
   description: >
     **Goal - harden the blueprint with facts**  
     Replace all placeholders in  with evidence-backed
-    content. However, keep in mind the user requests. If in
+    content. Leave no placeholders, in case of missing information, you can search, 
+    otherwise fallback to published best practice. If in
     the user request is not clear, assume the best practices and security.
-    However, user requests are the priority.
+    Ensure to include all the files that might be 
+    required to complete a full production grade application, even if in later stages
+    you will leave some of them empty or with default values. You wont be able to add
+    new files after this task. Include the yaml files to create the namespace(s).
 
     **Research workflow**
 
@@ -80,10 +93,13 @@ research_project:
     6. Justify each change in ≤ 1 sentence with citation. 
 
     <Important>
-       You can use only images from DockerHub. If the user requests a specific image, 
+       - You can use only images from DockerHub. If the user requests a specific image, 
        you can use it, but if the image is not available, you must use an alternative 
        image from DockerHub, searching with the available web and search tools. 
-       It is totally forbidden to use images from other repositories.
+       - It is totally forbidden to use images from other repositories.
+       - Ensure to specify for each tentative yaml file, the elements and configurations
+       that are relative to it. Never mix two resources in the same yaml file during the 
+       planification steps.
     </Important>
 
   expected_output: >
@@ -109,7 +125,7 @@ create_advanced_plan:
 
     • **Manifests Layout** - **no overlays**; create the layout tree, with 
      GitOps-friendly directory names (workloads/, network/, rbac/), 
-     based on the previous research. Example:  
+     based on the previous research. Include the yaml files to create the namespace(s). Example:  
       ```
       /manifests/
         workloads/
@@ -125,27 +141,18 @@ create_advanced_plan:
             folder2_name.yaml
       ``` 
 
-      Include all the folders and files required for a high level, top quality, production ready plan.
+      Include all the folders and files required for a high level, top quality, 
+      production ready plan.
 
-    •  Then foreach folder, add a little description of the folder, and for each yaml file
-    inside the folder, add two phases (each phase with bullet points) that will be divided in:
-      1. Basic Plan. (First phase) Include the bare minimal steps and configuration elements 
-      to make the folder work.
-      2. Advanced Plan. (Second phase) Include the configuration steps to make the folder work with 
+    Include the configuration steps to make the folder work with 
       the best practices and security.
 
-    With the steps in the basic plan, the project should be totally functional, ignoring potential
-    security issues.
-    Some of the manifest my not be used in the basic plan (First phase), and snot have any element 
-    in the basic plan (omit basic plan for them).
-
-    The advanced plan should include all the steps to make the manifest work with the best 
-    practices and security.
-
-    In both cases, try to write step by step what should the manifest contain, with a very 
+    Try to write step by step what should the manifest contain, with a very 
     brief explanation of why.
 
-    In any of both cases, no code is required. It is a verbal explanation of what should be done.
+    • Define the capabilities that will be dropped and that will be added to the cluster
+
+    No code is required. It is a verbal explanation of what should be done.
 
     • Any other considerations or information that you think are important, such as specific 
     configuration steps, specific informat  ion of a component, image etc. (here, you can hit 
@@ -158,7 +165,10 @@ create_advanced_plan:
     Include references if you use any.
 
     <Important>
-       You can use only images from DockerHub.
+       - You can use only images from DockerHub.
+       - Ensure to specify for each tentative yaml file, the elements and configurations
+       that are relative to it. Never mix two resources in the same yaml file during the 
+       planification steps.
     </Important>
 
     <Important>
@@ -177,7 +187,7 @@ create_advanced_plan:
     </feedback>
 
   expected_output: >  
-    Markdown only—no YAML/JSON/code—image names only.  Enough detail for a
+    Markdown only—no YAML/JSON/code—image names only. Enough detail for a
     senior engineer to generate final manifests without guesswork. Do not
     add to the md any symbol or text out of the format, it will be rendered
     as it is.

@@ -2,6 +2,7 @@ from crewai import Crew, Task, Process
 from crewai.project import CrewBase, task, crew
 from src.crewai.devops_flow.crews.devops_crew.BaseCrew import BaseCrew
 from src.crewai.devops_flow.crews.devops_crew.outputs import outputs
+from src.crewai.devops_flow.crews.devops_crew.guardrails.guardrails import validate_min_output_length_for_long_text
 
 @CrewBase
 class GatherInformationCrew(BaseCrew):
@@ -12,17 +13,20 @@ class GatherInformationCrew(BaseCrew):
     def gather_information(self) -> Task:
         return Task(
             config=self.tasks_config['gather_information'], # type: ignore[index]
-        )
+            guardrails=[validate_min_output_length_for_long_text]
+            )
     
     @task
     def research_project(self) -> Task:
         return Task(
             config=self.tasks_config['research_project'], # type: ignore[index]
+            guardrails=[validate_min_output_length_for_long_text]
         )
     
     @task
     def create_advanced_plan(self) -> Task:
         return Task(
             config=self.tasks_config['create_advanced_plan'], # type: ignore[index]
+            guardrails=[validate_min_output_length_for_long_text]   
         )    
     

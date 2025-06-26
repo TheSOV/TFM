@@ -3,8 +3,9 @@ from crewai.project import CrewBase, task, crew
 from src.crewai.devops_flow.crews.devops_crew.BaseCrew import BaseCrew
 from src.services_registry import services
 from src.crewai.devops_flow.blackboard.utils.Record import Record
+from src.crewai.devops_flow.crews.devops_crew.guardrails.guardrails import validate_min_output_length_for_long_text
 
-@CrewBase
+@CrewBase   
 class BasicImproveCrew(BaseCrew):
     """Description of your crew"""    
     tasks_config = 'tasks/basic_improve_tasks.yaml'
@@ -14,11 +15,12 @@ class BasicImproveCrew(BaseCrew):
         return Task(
             config=self.tasks_config['analyse_manifest_issue'], # type: ignore[index]
             tools=[
-                services.get("file_read"),
-                services.get("file_version_history"),
-                services.get("file_version_diff"),
-                services.get("config_validator"),
-                ]
+                services.get(f"file_read_{self.path}"),
+                services.get(f"file_version_history_{self.path}"),
+                services.get(f"file_version_diff_{self.path}"),
+                services.get(f"config_validator_{self.path}"),
+                ],
+            guardrails=[validate_min_output_length_for_long_text]
         )
 
     @task

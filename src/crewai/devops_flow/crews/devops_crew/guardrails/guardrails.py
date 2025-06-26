@@ -4,6 +4,11 @@ from crewai.llm import LLM
 from pathlib import Path
 from os import getenv
 
+def validate_min_output_length_for_long_text(result: TaskOutput) -> Tuple[bool, Any]:
+    if len(result.raw) < 1000:
+        return (False, f"Guardrail Message: Output is too short. You possibly did provide the report as answer, and instead used a failed tool call or a reference to the final report. Your final answer was: {result.raw} and it should be a report that complies with the task")
+    return (True, result)
+
 # ## Validate create k8s config
 # def _validate_create_k8s_config__files_exists(result: TaskOutput) -> Tuple[bool, Any]:
 #     try:

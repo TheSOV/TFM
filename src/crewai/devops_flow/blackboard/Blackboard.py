@@ -1,13 +1,14 @@
 import os
 from pathlib import Path
-from pydantic import BaseModel, Field
-from typing import List, Optional
+from pydantic import BaseModel, Field, PrivateAttr
+from typing import List, Optional, Dict, Any
 from src.crewai.devops_flow.blackboard.utils.Project import Project
 from src.crewai.devops_flow.blackboard.utils.Manifest import Manifest
 from src.crewai.devops_flow.blackboard.utils.GeneralInfo import GeneralInfo
 from src.crewai.devops_flow.blackboard.utils.Record import Record
 from src.crewai.devops_flow.blackboard.utils.Issue import Issue
 from src.crewai.devops_flow.blackboard.utils.Image import Image
+from src.crewai.devops_flow.blackboard.utils.Events import Events
 
 ## Main State, used to track the progress and results of the DevOps flow execution
 class Blackboard(BaseModel):
@@ -30,7 +31,9 @@ class Blackboard(BaseModel):
     records: List[Record] = []
     iterations: int = 0
     phase: str = "Waiting for kickoff"
+    events: Events = Field(default_factory=Events, exclude=False)
     
+
     def __init__(self, user_request: str = "", **data):
         """
         Initialize a Blackboard instance.
@@ -63,24 +66,24 @@ class Blackboard(BaseModel):
     def export_blackboard(
         self,
         *,
-        hide_advanced_plan: bool = True,
-        hide_basic_plan: bool = False,
+        show_advanced_plan: bool = True,
         show_high_issues: bool = True,
         show_medium_issues: bool = False,
         show_low_issues: bool = False,
         show_records: bool = True,
+        show_manifests: bool = True,
         last_records: int = 20,
     ) -> dict:
         """
         Returns the blackboard content as a dictionary with filtered and ordered issues.
         
         Args:
-            hide_advanced_plan: Whether to hide the advanced plan from the output
-            hide_basic_plan: Whether to hide the basic plan from the output
+            show_advanced_plan: Whether to show the advanced plan in the output
             show_high_issues: Whether to include high severity issues
             show_medium_issues: Whether to include medium severity issues
             show_low_issues: Whether to include low severity issues
             show_records: Whether to include records in the output
+            show_manifests: Whether to include manifests in the output
             last_records: If set, include only the most recent N records
             
         Returns:
@@ -90,12 +93,12 @@ class Blackboard(BaseModel):
         # Use JSON mode so datetime objects are serialized as ISO-8601 strings
         data = self.model_dump()
         
-        if hide_advanced_plan:
+        if not show_advanced_plan:
             data['project'].pop('advanced_plan', None)
-        
-        if hide_basic_plan:
-            data['project'].pop('basic_plan', None)
-        
+
+        # remove events
+        data.pop('events', None)
+
         # Filter and order issues by severity
         if 'issues' in data:
             severity_order = {
@@ -130,5 +133,9 @@ class Blackboard(BaseModel):
                         data['records'] = data['records'][-n:]
                 except (ValueError, TypeError):
                     pass  # ignore invalid values
+                    
+        # Handle manifests visibility
+        if not show_manifests and 'manifests' in data:
+            data.pop('manifests', None)
 
         return data

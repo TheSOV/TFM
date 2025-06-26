@@ -25,6 +25,77 @@ from crewai_tools import BraveSearchTool
 _registry: Dict[str, Tuple[Callable[[], Any], bool]] = {}
 _cache:    Dict[str, Any] = {}
 
+def init_services_with_path(path: str):
+    # Use a sensible default 'temp' instead of `path` to avoid creating incorrect paths like 'project/project'
+    temp_files_dir = os.getenv("TEMP_FILES_DIR", "temp")
+    full_path = os.path.join(temp_files_dir, path)
+
+    # Register kubectl tool with configuration from environment
+    def get_namespace_set(env_var: str) -> Optional[set]:
+        value = os.getenv(env_var, "").strip()
+        if not value:
+            return None
+        return set(filter(None, value.split(",")))
+
+    register(f"kubectl_{path}",
+    lambda: KubectlTool(
+        kubectl_path=os.getenv("KUBECTL_PATH", "/usr/bin/kubectl"),
+        allowed_verbs=set(filter(None, os.getenv("KUBECTL_ALLOWED_VERBS", "").split(","))),
+        safe_namespaces=get_namespace_set("KUBECTL_SAFE_NAMESPACES"),
+        denied_namespaces=get_namespace_set("KUBECTL_DENIED_NAMESPACES") or set(),
+        deny_flags=set(filter(None, os.getenv("KUBECTL_DENY_FLAGS", "").split(","))),
+        base_dir=full_path
+    ), singleton=False)
+
+    # Register FileVersioning as a singleton
+    register(f"file_versioning_{path}", 
+    lambda: FileVersioning(
+        repo_path=full_path
+    ), singleton=True)
+    
+    register(f"file_create_{path}", 
+    lambda: FileCreateTool(
+        base_dir=full_path,
+        versioning=get(f"file_versioning_{path}"),
+        enable_versioning=True
+    ), singleton=False)
+
+    register(f"file_edit_{path}", 
+    lambda: FileEditTool(
+        base_dir=full_path,
+        versioning=get(f"file_versioning_{path}"),
+        enable_versioning=True
+    ), singleton=False)
+
+    register(f"file_read_{path}", 
+    lambda: FileReadTool(
+        base_dir=full_path
+    ), singleton=False)
+
+    register(f"file_version_history_{path}", 
+    lambda: FileVersionHistoryTool(
+        base_dir=full_path,
+        versioning=get(f"file_versioning_{path}")
+    ), singleton=False)
+
+    register(f"file_version_diff_{path}", 
+    lambda: FileVersionDiffTool(
+        base_dir=full_path,
+        versioning=get(f"file_versioning_{path}")
+    ), singleton=False)
+
+    register(f"file_version_restore_{path}", 
+    lambda: FileVersionRestoreTool(
+        base_dir=full_path,
+        versioning=get(f"file_versioning_{path}")
+    ), singleton=False)
+
+    register(f"config_validator_{path}", 
+    lambda: ConfigValidatorTool(
+        base_dir=full_path
+    ), singleton=False)
+    
+
 def init_services():
     # Register Blackboard as a singleton
     register("blackboard", lambda: Blackboard(), singleton=True)
@@ -61,71 +132,7 @@ def init_services():
         late_chunking_helper=get("late_chunking_helper")
     ), singleton=False)
 
-    # Register kubectl tool with configuration from environment
-    def get_namespace_set(env_var: str) -> Optional[set]:
-        value = os.getenv(env_var, "").strip()
-        if not value:
-            return None
-        return set(filter(None, value.split(",")))
-        
-    register("kubectl",
-    lambda: KubectlTool(
-        kubectl_path=os.getenv("KUBECTL_PATH", "/usr/bin/kubectl"),
-        allowed_verbs=set(filter(None, os.getenv("KUBECTL_ALLOWED_VERBS", "").split(","))),
-        safe_namespaces=get_namespace_set("KUBECTL_SAFE_NAMESPACES"),
-        denied_namespaces=get_namespace_set("KUBECTL_DENIED_NAMESPACES") or set(),
-        deny_flags=set(filter(None, os.getenv("KUBECTL_DENY_FLAGS", "").split(","))),
-        base_dir=os.getenv("TEMP_FILES_DIR", "/temp")  # Use same base dir as other file operations
-    ), singleton=False)
-
-    # Register FileVersioning as a singleton
-    register("file_versioning", 
-    lambda: FileVersioning(
-        repo_path=os.getenv("TEMP_FILES_DIR")
-    ), singleton=True)
     
-    register("file_create", 
-    lambda: FileCreateTool(
-        base_dir=os.getenv("TEMP_FILES_DIR"),
-        versioning=get("file_versioning"),
-        enable_versioning=True
-    ), singleton=False)
-
-    register("file_edit", 
-    lambda: FileEditTool(
-        base_dir=os.getenv("TEMP_FILES_DIR"),
-        versioning=get("file_versioning"),
-        enable_versioning=True
-    ), singleton=False)
-
-    register("file_read", 
-    lambda: FileReadTool(
-        base_dir=os.getenv("TEMP_FILES_DIR")
-    ), singleton=False)
-
-    register("file_version_history", 
-    lambda: FileVersionHistoryTool(
-        base_dir=os.getenv("TEMP_FILES_DIR"),
-        versioning=get("file_versioning")
-    ), singleton=False)
-
-    register("file_version_diff", 
-    lambda: FileVersionDiffTool(
-        base_dir=os.getenv("TEMP_FILES_DIR"),
-        versioning=get("file_versioning")
-    ), singleton=False)
-
-    register("file_version_restore", 
-    lambda: FileVersionRestoreTool(
-        base_dir=os.getenv("TEMP_FILES_DIR"),
-        versioning=get("file_versioning")
-    ), singleton=False)
-
-    register("config_validator", 
-    lambda: ConfigValidatorTool(
-        base_dir=os.getenv("TEMP_FILES_DIR")
-    ), singleton=False)
-
     # Register other services here as needed
     register("kill_signal_event", lambda: threading.Event(), singleton=True) # Ensure threading is imported
 
@@ -147,11 +154,6 @@ def init_services():
     register("blackboard", 
     lambda: Blackboard(), 
     singleton=True)
-    
-    # Register BlackboardTool with dependency injection
-    register("blackboard_tool",
-    lambda: BlackboardTool(blackboard=get("blackboard")),
-    singleton=False)
 
     register("brave_search",
     lambda: BraveSearchTool(n_results=20),
@@ -175,7 +177,7 @@ def init_services():
 def register(name: str,
              factory: Callable[[], Any],
              *,
-             singleton: bool = True) -> None:
+             singleton: bool = True,) -> None:
     """Añade un servicio al registro (lazy)."""
     _registry[name] = (factory, singleton)
 

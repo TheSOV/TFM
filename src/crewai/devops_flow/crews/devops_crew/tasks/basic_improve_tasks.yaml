@@ -3,19 +3,8 @@ analyse_manifest_issue:
     **Goal - pinpoint and plan the fix**  
     Examine the failing manifest, identify root-cause(s) of the validation
     errors, and sketch a *minimal* change set that yields a functional
-    Kubernetes object (security hardening out-of-scope).
-
-    **Scope & rules**
-
-    • Triage **one file per run** - the path is inferred from the first stack-
-      trace or the `file:` entry inside `<issues>`.  
-    • Error details live in `<issues>`; clear them before touching stylistic
-      nits.  
-    • If spec ambiguity or conflicting best practices arise, *pause once* to
-      query **devops_researcher** (for example: unknown `apiVersion`, 
-      deprecated field, incompatible selector).  
-    • Validation targets functional readiness only - ignore PSP/PSS, CIS,
-      image-signing, etc.
+    Kubernetes object (security hardening out-of-scope). Your focus is
+    to fix the mentioned problem and make the manifest functional. 
 
     **Execution workflow**
 
@@ -23,23 +12,28 @@ analyse_manifest_issue:
     Use the file_version_history and file_version_diff to see that last changes.
     If the file has a last working version, use it as a reference.
     2. Check the logs, if the same error has been reported before multiple consecutive times, 
-    directly ask the devops_researcher to resolve the issue, giving the actual code and errors.
-    Request him to use web browser tool and stackoverflow tool to search for the issue.
+    search for information to resolve the issue, giving the actual code and errors.
     and provide a simple, functional solution. If this is the case, jump to the xxx step.
     If it is not the case, continue with the next steps.
-    3. **Diagnose** - map each error to its cause (schema, typo, missing field
-       or wrong kind) and cite the relevant doc line.  
-    4. **Resolve gaps** - if the fix requires domain knowledge (e.g.,
-       `RollingUpdate` strategy default), ask **devops_researcher**; otherwise
-       apply the *smallest viable* default and record why. As Iterations increase,
-       increase the consults to the researcher, looking for the minimal viable
-       default.
-    5. **Propose fix** - list exact field edits (add / replace / delete).  
-    6. **Radical fix** - in case that iterations goes over 5, and a persistent issue is found, 
+    3. **Propose fix** - list exact field edits (add / replace / delete).  
+    4. **Propose Radical fix** - in case that iterations goes over 5, and a persistent issue is found, 
     in the records, apply redical changes, ignoring best-practice and security, in order
     to ensure that the issue is fixed.
-    7. **Report** - deliver root-cause, proposed YAML diffs (in prose),
+    5. **Report** - deliver root-cause, proposed YAML diffs (in prose),
        researcher Q-&-A, and rationale.
+
+    <Important>
+    During this step, you CAN NOT create new files. If a new manifest is required to be created,
+    select one of the existing files and add the new manifest to it.
+
+    Focus on solving gracefully and with production level code typical problems, such as permission
+    problems, write permissions, network capabilities, non-root best-practices, volumes, volumes
+    claims, ephemeral storage, etc. Focus on giving simple, functional solutions, focused on solving
+    the problem.
+
+    Also, avoid to repreat solutions already present in the records. When trying to get a soluction
+    use a clear and concise approach, avoiding to repeat the same errors.
+    </Important>
     
     **Context Blocks**
 
@@ -59,14 +53,16 @@ analyse_manifest_issue:
     <feedback>
     {feedback}
     </feedback>
-  markdown: true
   expected_output: >
     • Root-cause explanation  
     • Proposed YAML changes (plain text, no code block)  
     • Any question sent to **devops_researcher** + summary answer  
     • Justification for each default
+
+    The output NEEDS to be the plain text, not a markdown document, and not a reference
+    tp a previous file. The last answer is the report integrally.
   max_retries: 3
-  agent: devops_engineer
+  agent: devops_researcher
 
 apply_manifest_fix:
   description: >
@@ -90,21 +86,16 @@ apply_manifest_fix:
     The YAML edit **is mandatory**. The final action must be a successful.
     validation call.
 
-    In case you need to create a file, that is not in the project and plan,
-    add it to one of the existing files. You cant create files out of the project and plan.
+    <Important>
+    During this step, you CAN NOT create new files. If a new manifest is required to be created,
+    select one of the existing files and add the new manifest to it. The use of the create_tool
+    is strictly forbidden. Use the edit_file tool instead.
+    </Important>
 
     **Context Blocks**
     • `<issues>` - Last validation error output.  
     • `<blackboard>` - Updated project state.  
     • `<feedback>` - If present, address first.
-
-    <issues>
-    {issues}
-    </issues>
-
-    <blackboard>
-    {blackboard}
-    </blackboard>
 
     <feedback>
     {feedback}

@@ -41,12 +41,12 @@ class PopeyeScanClient:
         except (subprocess.CalledProcessError, FileNotFoundError):
             return False
 
-    def run_scan(self, namespace: str = "all") -> Dict[str, Any]:
+    def run_scan(self, namespace: str) -> Dict[str, Any]:
         """
         Run a Popeye scan on the specified namespace.
         
         Args:
-            namespace: Kubernetes namespace to scan (default: 'all' for all namespaces)
+            namespace: Kubernetes namespace to scan
             
         Returns:
             Dict containing the scan results in JSON format

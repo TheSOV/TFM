@@ -126,29 +126,34 @@ class DockerImageAnalysisTool(BaseTool):
         Returns:
             A JSON string containing the analysis results.
         """
-        results: Dict[str, Any] = {"image": f"{repository}:{tag}"}
-
         try:
-            logger.info(f"Fetching inspect info for {repository}:{tag}")
-            results["inspect_info"] = self._docker_utils.docker_inspect(repository=repository, tag=tag)
-        except Exception as e:
-            logger.error(f"Error during docker_inspect for {repository}:{tag}: {e}", exc_info=True)
-            results["inspect_info"] = {"error": f"Failed to get inspect info: {str(e)}"}
+            results: Dict[str, Any] = {"image": f"{repository}:{tag}"}
 
-        try:
-            logger.info(f"Fetching user and group info for {repository}:{tag}")
-            user_group_info = self._docker_utils.get_image_users_and_groups(repository=repository, tag=tag)
-            results.update(user_group_info)
-        except Exception as e:
-            logger.error(f"Error during get_image_users_and_groups for {repository}:{tag}: {e}", exc_info=True)
-            results["users_details"] = {"error": f"Failed to get user/group info: {str(e)}"}
+            try:
+                logger.info(f"Fetching inspect info for {repository}:{tag}")
+                results["inspect_info"] = self._docker_utils.docker_inspect(repository=repository, tag=tag)
+            except Exception as e:
+                logger.error(f"Error during docker_inspect for {repository}:{tag}: {e}", exc_info=True)
+                results["inspect_info"] = {"error": f"Failed to get inspect info: {str(e)}"}
 
-        try:
-            logger.info(f"Discovering writable locations for {repository}:{tag}")
-            writable_locations_info = self._docker_utils.discover_image_writable_locations(repository=repository, tag=tag)
-            results.update(writable_locations_info)
+            try:
+                logger.info(f"Fetching user and group info for {repository}:{tag}")
+                user_group_info = self._docker_utils.get_image_users_and_groups(repository=repository, tag=tag)
+                results.update(user_group_info)
+            except Exception as e:
+                logger.error(f"Error during get_image_users_and_groups for {repository}:{tag}: {e}", exc_info=True)
+                results["users_details"] = {"error": f"Failed to get user/group info: {str(e)}"}
+
+            try:
+                logger.info(f"Discovering writable locations for {repository}:{tag}")
+                writable_locations_info = self._docker_utils.discover_image_writable_locations(repository=repository, tag=tag)
+                results.update(writable_locations_info)
+            except Exception as e:
+                logger.error(f"Error during discover_image_writable_locations for {repository}:{tag}: {e}", exc_info=True)
+                results["potential_writable_paths"] = {"error": f"Failed to discover writable locations: {str(e)}"}
+            
+            return results
+            
         except Exception as e:
-            logger.error(f"Error during discover_image_writable_locations for {repository}:{tag}: {e}", exc_info=True)
-            results["potential_writable_paths"] = {"error": f"Failed to discover writable locations: {str(e)}"}
-        
-        return results
+            logger.error(f"Error during docker image analysis for {repository}:{tag}: {e}", exc_info=True)
+            return {"error": f"Failed to analyze docker image: {str(e)}"}
