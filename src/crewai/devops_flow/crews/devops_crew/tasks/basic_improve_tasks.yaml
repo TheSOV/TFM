@@ -1,38 +1,50 @@
 analyse_manifest_issue:
   description: >
-    **Goal - pinpoint and plan the fix**  
-    Examine the failing manifest, identify root-cause(s) of the validation
-    errors, and sketch a *minimal* change set that yields a functional
-    Kubernetes object (security hardening out-of-scope). Your focus is
-    to fix the mentioned problem and make the manifest functional. 
+    **Goal - Determine root cause of the problem, isolate the issue and propose a solution**  
 
-    **Execution workflow**
-
-    1. **Parse** - read file & error; highlight offending YAML keys/values.  
-    Use the file_version_history and file_version_diff to see that last changes.
-    If the file has a last working version, use it as a reference.
-    2. Check the logs, if the same error has been reported before multiple consecutive times, 
-    search for information to resolve the issue, giving the actual code and errors.
-    and provide a simple, functional solution. If this is the case, jump to the xxx step.
-    If it is not the case, continue with the next steps.
-    3. **Propose fix** - list exact field edits (add / replace / delete).  
-    4. **Propose Radical fix** - in case that iterations goes over 5, and a persistent issue is found, 
-    in the records, apply redical changes, ignoring best-practice and security, in order
-    to ensure that the issue is fixed.
-    5. **Report** - deliver root-cause, proposed YAML diffs (in prose),
-       researcher Q-&-A, and rationale.
+    <Steps>
+    1. Use the yaml_read tool to read the file.
+    2. With the information of the <issues>, analyze the code loaded from the yaml_read tool.
+    3. Try to isolate each issue in the content of the code, identifying the index of the document,
+    and the section of the code where the issue is located. Focus on solving each issue solely, 
+    and avoid to modify other elements that are not related to the issue. Take in count, that it 
+    is possible that multiple issues arte related and has the same root, you can group them in the
+    same solution.
+    4. Investigate for each root cause, the posible solution. Always try to solve the problem with 
+    minimal changes. Avoid to propose any change not related to the issue. Focus on a simple solution
+    that addresses the root cause. Only give the changes that are required to me made, no more lines
+    that the ones that are required to be made. Use the information in hand, do not modify what its working,
+    or its not mentioned in the issue.
+    5. Generate the output.
+    </Steps>
+    
 
     <Important>
-    During this step, you CAN NOT create new files. If a new manifest is required to be created,
-    select one of the existing files and add the new manifest to it.
-
-    Focus on solving gracefully and with production level code typical problems, such as permission
+    - Focus on solving gracefully and with production level code typical problems, such as permission
     problems, write permissions, network capabilities, non-root best-practices, volumes, volumes
     claims, ephemeral storage, etc. Focus on giving simple, functional solutions, focused on solving
     the problem.
 
-    Also, avoid to repreat solutions already present in the records. When trying to get a soluction
+    - Also, avoid to repreat solutions already present in the records. When trying to get a solution
     use a clear and concise approach, avoiding to repeat the same errors.
+
+    - Issues can come with recommendations, however, they might be superficial, as they are 
+    generated while testing the manifest. You can use them as reference, but you must propose
+    your own fact based solution.
+
+    - In the blackboard, there is a list of manifests, with descriptions and a code example, however
+    at this point, those are referential, just to keep track of the bases from where the project
+    was created. You can add new manifests or resources as required, in order to make the project
+    functional.
+
+    - Sometimes, multiple subdirectories inside a same directory requires to be written,
+    make writable the parent directory or each subdirectory. For example:
+    if there is folder 1/folder 1.1/folder 1.1.1, and folder 1/folder 1.2/folder 1.2.1, and folder 1/folder 1.3/folder 1.3.1, 
+    make writable folder 1 directory.  
+    
+    -  **This is extremly important, is the politic to follow**: Try to make minimal changes, avoidding to modify elements that are unrelated to the issue,
+    and modifying only the documents required to fix the issue. Focus on the issues, solving them
+    with the minimal changes possible. 
     </Important>
     
     **Context Blocks**
@@ -41,7 +53,7 @@ analyse_manifest_issue:
     • `<blackboard>` - Project-wide artefacts and notes.  
     • `<feedback>` - If present, addressing it is top priority.
 
-
+    
     <issues>
     {issues}
     </issues>
@@ -54,58 +66,106 @@ analyse_manifest_issue:
     {feedback}
     </feedback>
   expected_output: >
-    • Root-cause explanation  
-    • Proposed YAML changes (plain text, no code block)  
-    • Any question sent to **devops_researcher** + summary answer  
-    • Justification for each default
-
-    The output NEEDS to be the plain text, not a markdown document, and not a reference
-    tp a previous file. The last answer is the report integrally.
+    A json containing:
+      - issues: List of issues to which the solution applies
+      - resource: Resource where the issue was found and the solution will be applied
+      - section: Specific section of the code, where the issue was found and the solution will be applied
+      - solution: Modifications to be applied to the resource, to solve the issue
   max_retries: 3
   agent: devops_researcher
 
 apply_manifest_fix:
   description: >
     **Goal - edit, lint, repeat until clean**  
-    Apply the agreed fixes, run validation (security scan disabled), and exit
-    only after the manifest passes with zero functional errors.
+    Apply the agreed fixes, given in the context received, run 
+    validation (security scan disabled), and exit only after the 
+    manifest passes with zero functional errors.
 
     **Execution workflow**
 
-    1. **Edit file** - use `edit_file` (or `create_file` if missing) to apply
-       each change described in *analyse_manifest_issue*.  
-    2. **Validate** -  
-       a. Run config validation tool {security_scan:false}
-       b. If validation fails, patch and re-validate.  
-       c. After **three** failed loops or a brand-new error class, *escalate to
-          **devops_researcher*** with the fresh error payload.  
-    3. **Success** - final action **must** be a passing
-       `validate_manifest  {security_scan:false}` call.
+    1. **Read file** - use `yaml_read` to read the file.
+    2. **Edit file** - use `yaml_edit` (or `create_file` if missing) to apply
+       each change described in *analyse_manifest_issue*.  Ensure you dont add 
+       duplicated elements. If duplicated elements are found, remove them.
+    3. **Validate** -  
+       Use `config_validator` to validate the file. If the validation fails, 
+       use `yaml_read` to read the file and `yaml_edit` to edit the file. Repeat
+       the process until the validation passes.
+    4. **Success** - final action **must** be a passing
+       validate_manifest call.
 
     **Important**  
     The YAML edit **is mandatory**. The final action must be a successful.
-    validation call.
+    validate_manifest call.
 
     <Important>
-    During this step, you CAN NOT create new files. If a new manifest is required to be created,
-    select one of the existing files and add the new manifest to it. The use of the create_tool
-    is strictly forbidden. Use the edit_file tool instead.
+    Pay special attention to all the fields of the validation output, and try to fix them all, with
+    the exception of security_scan errors, that are at your consideration to be fixed or not, 
+    depending on the severity or the level of contradiction with the configuration you require. 
+    You can also avoid repetitive triggers by skipping some of the security_scan checks filling
+    the skip_checks parameter with the check IDs you want to skip.
+
+    Avoid to modify elements that are not related to the issue, or are functional, unless required.
+    </Important>
+  expected_output: >
+    Tool call in the form:  
+    `Action: yaml_edit  Action_Inputs: { ... }` 
+    The last validation must succeed.
+  max_retries: 3
+  agent: devops_engineer
+
+verify_solution:
+  description: >
+    Use the config_validator tool to validate the solution, the yaml_read tool to read the file
+    and the yaml_edit tool to edit the file and apply the required corrections when necessary.
+
+    Fix the issues in the following order:
+    1. yaml syntax errors
+    2. kubernetes syntax errors
+    3. duplicated elements
+    4. kubernetes --dry-run errors
+    5. security_scan high risk errors
+    6. security_scan medium risk errors
+    7. security_scan low risk errors
+    8. best practices errors
+
+    <Steps>
+    1. Use the config_validator tool to validate the solution.
+    2. If the validation fails, use the yaml_read tool to read the file. You can read the full file or
+    a specific line range.
+    3. Use the yaml_edit tool to edit the file and apply the required corrections when necessary.
+    4. Check for duplicated elements in the file and remove them.
+    5. Repeat steps 1-4 until the validation passes. Its is mandatory to read before editing.
+    </Steps>
+
+    to end, the file must be valid and comply with the best practices. Only if it is not possible
+    to meet some low risk errors, or best practices errors, you can mark the task as completed even
+    when those two points are not met. The rest of the requirements (1 to 6) must be met.
+
+    <Important>
+    - Pay special attention to all the fields of the validation output, and try to fix them all, with
+    the exception of security_scan errors, that are at your consideration to be fixed or not, 
+    depending on the severity or the level of contradiction with the configuration you require. 
+    - You can also avoid repetitive triggers by skipping some of the security_scan checks filling
+    the skip_checks parameter with the check IDs you want to skip.
+    - Remember labels cant include whitespace, so use _ or - instead of space.
+    ** You should never apply a fix that goes against the original intent of the manifest. **
+    - Avoid to modify elements that are not related to the issue, or are functional, unless required.
     </Important>
 
-    **Context Blocks**
-    • `<issues>` - Last validation error output.  
-    • `<blackboard>` - Updated project state.  
-    • `<feedback>` - If present, address first.
-
-    <feedback>
-    {feedback}
-    </feedback>
   expected_output: >
-    Tool calls in the form:  
-    `Action: edit_file  Action_Inputs: { ... }`  
-    … followed by  
-    `Action: validate_manifest  Action_Inputs: { security_scan: false }`  
-    The last validation must succeed.
+    Ordered tool calls ending with:  
+    `Action: config_validator  Action_Inputs: { "enable_security_scan": true }` 
+    `Action: yaml_read  Action_Inputs: { ... }` (if needed)  
+    `Action: yaml_edit  Action_Inputs: { ... }` (if needed)  
+    `Action: config_validator  Action_Inputs: { "enable_security_scan": true }`  (if needed) 
+    Validation must succeed (except for low severity security_scan, Try to make the manifests comply with the best
+    practices as much as possible).
+
+    <Important>
+    Pay special attention to all the fields of the validation output, and try to fix them all.
+    Editing the file is mandatory.
+    </Important>
   max_retries: 3
   agent: devops_engineer
 
@@ -124,7 +184,7 @@ log_manifest_fix:
     Plain-text paragraph (4-6 sentences) as described, en 3 person, past tense, professional tone.
   max_retries: 3
   context:
-    - analyse_manifest_issue
     - apply_manifest_fix
-  agent: devops_engineer
+    - verify_solution
+  agent: devops_researcher
 

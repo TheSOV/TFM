@@ -7,8 +7,12 @@ This script:
 2. Launches the Flask development server
 """
 
-import argparse
+# Set the script's directory as the current working directory
 import os
+script_dir = os.path.dirname(os.path.abspath(__file__))
+os.chdir(script_dir)
+
+import argparse
 import sys
 import webbrowser
 import subprocess
@@ -17,16 +21,34 @@ import logging
 from threading import Timer
 from src.web.app import app
 
-logging.basicConfig(level=logging.INFO)
+# Configure logging with more detailed format and ensure all loggers are visible
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
+
+# Set specific logger levels
 logging.getLogger('flask').setLevel(logging.WARNING)
 logging.getLogger('werkzeug').setLevel(logging.WARNING)
 
+# Ensure DevopsFlow and related loggers are visible
+logging.getLogger('src.crewai.devops_flow').setLevel(logging.INFO)
+logging.getLogger('src.crewai.devops_flow.DevopsFlow').setLevel(logging.INFO)
+
+# Create a console handler to ensure logs go to console
+console_handler = logging.StreamHandler()
+console_handler.setLevel(logging.INFO)
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+console_handler.setFormatter(formatter)
+
+# Add handler to root logger if not already present
+root_logger = logging.getLogger()
+if not any(isinstance(handler, logging.StreamHandler) for handler in root_logger.handlers):
+    root_logger.addHandler(console_handler)
+
 from dotenv import load_dotenv
 load_dotenv(override=True)
-
-# Set the script's directory as the current working directory
-script_dir = os.path.dirname(os.path.abspath(__file__))
-os.chdir(script_dir)
 
 def start_mlflow_server():
     """Starts the MLflow server in a separate process."""

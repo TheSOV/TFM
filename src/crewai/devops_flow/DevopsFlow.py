@@ -1,12 +1,15 @@
 import os
 import logging
 import time
+import traceback
+import asyncio
+import datetime
 import threading
 from typing import Optional
 
 import src.services_registry.services as services
 
-from src.crewai.devops_flow.blackboard.utils.Issue import SEVERITY_HIGH
+from src.crewai.devops_flow.blackboard.utils.Issue import SEVERITY_HIGH, SEVERITY_MEDIUM, SEVERITY_LOW
 
 from src.retry_mechanism.retry import retry_with_feedback
 
@@ -34,6 +37,8 @@ from pprint import pprint
 import pickle
 import asyncio
 import json
+import traceback
+import yaml
 
 import mlflow
 import datetime
@@ -44,10 +49,18 @@ services.init_services()
 
 logger = logging.getLogger(__name__)
 
+# Debug: Print logger information
+print(f"DevopsFlow logger name: {logger.name}")
+print(f"DevopsFlow logger level: {logger.level}")
+print(f"DevopsFlow logger effective level: {logger.getEffectiveLevel()}")
+print(f"DevopsFlow logger handlers: {logger.handlers}")
+print(f"Root logger handlers: {logging.getLogger().handlers}")
+
 class DevopsFlow:
-    def __init__(self, user_request: str, path: str = "project"):
+    def __init__(self, user_request: str, path: str = "project", file_path: str = "manifests.yaml"):
         self.path = path
         self.base_dir = os.getenv("TEMP_FILES_DIR", "temp")
+        self.filename = file_path
 
         self.blackboard = services.get("blackboard")
         self.event_listener = DevopsEventListener(self.blackboard)
@@ -56,12 +69,16 @@ class DevopsFlow:
 
         # Get the kill signal event from the service registry
         self.kill_signal: threading.Event = services.get("kill_signal_event")
+        
+        # Test log to verify logging is working
+        logger.info(f"DevopsFlow initialized with user_request: {user_request[:50]}...")
         self.kill_signal.clear() # Clear at the start of a new flow instance
 
-        self.kind_manager = KindManager()
+        k8s_version = os.getenv("K8S_VERSION", "v1.29.0")
+        self.kind_manager = KindManager(k8s_version=k8s_version)
         self.cluster_manager = None
 
-        services.init_services_with_path(self.path)
+        services.init_services_with_path(self.path, file_path)
 
     # TODO move this to parent
     def clear_temp_files(self):
@@ -103,26 +120,9 @@ class DevopsFlow:
             logger.warning(f"Workspace directory does not exist: {full_path}")
             return deleted
 
-        # Build set of paths referenced in manifests
-        manifest_paths = set()
-        for m in self.blackboard.manifests:
-            try:
-                # Normalize and resolve the manifest path
-                # Use the robust, consistent path normalization pattern
-                relative_path = os.path.normpath(m.file_path).replace('\\', '/').lstrip('/')
-                abs_manifest_path = os.path.abspath(os.path.join(full_path, relative_path))
-                
-                # Ensure the path is within our workspace for security
-                if not abs_manifest_path.startswith(full_path):
-                    logger.warning(f"Manifest path outside workspace: {abs_manifest_path}")
-                    continue
-                    
-                manifest_paths.add(abs_manifest_path.lower())  # Case-insensitive comparison
-                logger.debug(f"Tracking manifest path: {abs_manifest_path}")
-            except Exception as e:
-                logger.error(f"Error processing manifest path {m.file_path}: {e}")
-
-        logger.info(f"Pruning untracked files in {full_path}")
+        # Build set of paths referenced in the project's file_path
+        project_file = os.path.join(full_path, self.filename)
+        manifest_paths = {os.path.abspath(project_file).lower()}
         
         # Track directories to potentially remove if empty
         dirs_to_check = set()
@@ -196,16 +196,6 @@ class DevopsFlow:
         return deleted
 
 
-    def reset_cluster(self):
-        self.kind_manager.recreate_cluster() # TODO move this to parent
-        self.cluster_manager = ClusterManager(base_dir=os.getenv("TEMP_FILES_DIR", "temp"), dir_path=self.path)
-        
-        logger.info(self.blackboard.model_dump())
-        logger.info(self.blackboard.project.model_dump())
-        
-        self.cluster_manager.create_namespaces(self.blackboard.project.namespaces)
-
-
     def apply_k8s_config(self):   
         self.cluster_manager.create_from_directory()
     
@@ -276,7 +266,7 @@ class DevopsFlow:
 
         crews = []
 
-        # Process each image sequentially
+        # Process each image in parallel
         for image_name in results.json_dict['images']:
             crew = ImageInformationCrew(path=self.path).crew()
             # Await the kickoff directly and process the result
@@ -301,9 +291,9 @@ class DevopsFlow:
 
 
     @retry_with_feedback(max_attempts=3, delay=10)
-    async def first_approach(self, manifest: Manifest, feedback: Optional[str] = None):
+    async def first_approach(self, manifests: list[Manifest], feedback: Optional[str] = None):
         if self.kill_signal.is_set():
-            logger.info(f"Kill signal detected. Aborting first_approach for manifest: {manifest.file_path}")
+            logger.info(f"Kill signal detected. Aborting first_approach for manifest: {manifest.title}")
             # For async methods, ensure we return something awaitable if necessary, or handle cancellation.
             # Here, simple return should be fine as the caller (first_approach_flow) will handle it.
             return None # Or appropriate default/marker for cancellation
@@ -311,10 +301,12 @@ class DevopsFlow:
         Create the first version of the manifests
         """
         logger.info("First approach")
+       
+        manifests = [manifest.model_dump() for manifest in manifests]
 
         results = await FirstApproachCrew(path=self.path).crew().kickoff_async(
             inputs={
-                "manifest": manifest.model_dump(),
+                "manifests": manifests,
                 "blackboard": self.blackboard.export_blackboard(show_advanced_plan=False),
                 "feedback": feedback,
             }
@@ -322,17 +314,12 @@ class DevopsFlow:
 
         temp_dir = os.getenv("TEMP_FILES_DIR", "temp")
         # Normalize path separators and handle leading slashes using the consistent pattern
-        relative_path = os.path.normpath(manifest.file_path).replace('\\', '/').lstrip('/')
+        relative_path = os.path.normpath(self.filename)
         abs_file_path = os.path.abspath(os.path.join(temp_dir, self.path, relative_path))
-        
-        logger.debug(f"Temporary directory: {temp_dir}")
-        logger.debug(f"Project path: {self.path}")
-        logger.debug(f"Manifest file path: {manifest.file_path}")
-        logger.debug(f"Resolved absolute path: {abs_file_path}")
         
         if not os.path.isfile(abs_file_path):
             logger.warning(f"Manifest file at {abs_file_path} does not exist on disk.")
-            raise FileNotFoundError(f"You forgot to create the {abs_file_path}. Try again and ensure that this time the file is created with the appropriate content. Use the file_create tool to create it, with the tool call Action: action_name Action Input: .....")
+            raise FileNotFoundError(f"You forgot to create the {self.filename}. Try again and ensure that this time the file is created with the appropriate content. Use the yaml_write_{self.path} tool to create it, with the tool call Action: action_name Action Input: .....")
 
         return results
 
@@ -342,42 +329,94 @@ class DevopsFlow:
         if self.kill_signal.is_set():
             logger.info("Kill signal detected. Aborting per_resource_research.")
             return
-        
-        logger.info("Per resource research")
 
-        per_resource_research_crews = []
-        
-        for manifest in self.blackboard.manifests:
-            crew = PerResourceResearchCrew(path=self.path).crew()
-            per_resource_research_crews.append(
-                crew.kickoff_async(
-                    inputs={
-                        "blackboard": self.blackboard.export_blackboard(),
-                        "feedback": feedback,
-                        "resource": manifest.model_dump(),
-                    }
-                )
-            )
+        resources = [manifest.model_dump() for manifest in self.blackboard.manifests]
 
-        # Wait for all crews to complete and get their results
-        results = await asyncio.gather(*per_resource_research_crews)
+        result = await PerResourceResearchCrew(path=self.path).crew().kickoff_async(
+            inputs={
+                "blackboard": self.blackboard.export_blackboard(),
+                "feedback": feedback,
+                "resources": resources,
+            }
+        )
+
+        self.blackboard.manifests = [Manifest(**manifest) for manifest in result.json_dict['manifests']]
+
+        # per_resource_research_crews = []
+        
+        # for manifest in self.blackboard.manifests:
+        #     crew = PerResourceResearchCrew(path=self.path).crew()
+        #     per_resource_research_crews.append(
+        #         crew.kickoff_async(
+        #             inputs={
+        #                 "blackboard": self.blackboard.export_blackboard(),
+        #                 "feedback": feedback,
+        #                 "resource": manifest.model_dump(),
+        #             }
+        #         )
+        #     )
+
+        # # Wait for all crews to complete and get their results
+        # results = await asyncio.gather(*per_resource_research_crews)
        
-        # Pair results with manifests by order and update descriptions
-        if len(results) != len(self.blackboard.manifests):
-            logger.warning(f"Mismatch in number of results ({len(results)}) and manifests ({len(self.blackboard.manifests)})")
+        # # Pair results with manifests by order and update descriptions
+        # if len(results) != len(self.blackboard.manifests):
+        #     logger.warning(f"Mismatch in number of results ({len(results)}) and manifests ({len(self.blackboard.manifests)})")
             
-        # Update each manifest's description with the corresponding result
-        for i, (result, manifest) in enumerate(zip(results, self.blackboard.manifests)):
-            if result is None:
-                logger.warning(f"Skipping None result at index {i}")
-                continue
+        # # Update each manifest's description with the corresponding result
+        # for i, (result, manifest) in enumerate(zip(results, self.blackboard.manifests)):
+        #     if result is None:
+        #         logger.warning(f"Skipping None result at index {i}")
+        #         continue
                 
-            try:
-                manifest.description = result.raw
-                logger.info(f"Updated description for manifest: {manifest.file_path}")
-            except Exception as e:
-                logger.error(f"Failed to update manifest at index {i} (file: {manifest.file_path}): {str(e)}")
+        #     try:
+        #         manifest.description = result.raw
+        #         logger.info(f"Updated description for manifest: {manifest.title}")
+        #     except Exception as e:
+        #         logger.error(f"Failed to update manifest at index {i} (file: {manifest.title}): {str(e)}")
 
+
+    def _ensure_namespaces_exist(self):
+        """
+        Ensures that all namespaces referenced in the current manifest file exist in the cluster.
+        It parses the manifest, extracts all unique namespace identifiers, and then
+        instructs the cluster manager to create them. This is crucial for preventing
+        'namespace not found' errors during dry-runs or applications.
+        """
+        ### start of ensure namespace creation ###
+        logger.info("Ensuring all namespaces from manifest file exist...")
+        temp_dir = os.getenv("TEMP_FILES_DIR", "temp")
+        manifest_path = os.path.join(temp_dir, self.path, self.filename)
+        namespaces_to_create = set()
+
+        if os.path.exists(manifest_path):
+            try:
+                with open(manifest_path, 'r') as f:
+                    documents = yaml.safe_load_all(f)
+                    for doc in documents:
+                        if not doc or not isinstance(doc, dict):
+                            continue
+                        # Add namespace from the resource's metadata
+                        if 'namespace' in doc.get('metadata', {}):
+                            namespaces_to_create.add(doc['metadata']['namespace'])
+                        # Add namespace from the Namespace resource's name
+                        if doc.get('kind') == 'Namespace' and 'name' in doc.get('metadata', {}):
+                            namespaces_to_create.add(doc['metadata']['name'])
+            except Exception as e:
+                logger.error(f"Could not parse {manifest_path} to extract namespaces: {e}")
+
+        # Fallback to blackboard if parsing fails or yields no namespaces
+        if not namespaces_to_create:
+            logger.warning("No namespaces found in manifest file or file could not be read. Falling back to blackboard. The following namespaces will be created: " + str(self.blackboard.general_info.namespaces))
+            namespaces_to_create.update(self.blackboard.general_info.namespaces)
+
+        if namespaces_to_create:
+            logger.info(f"Creating namespaces: {list(namespaces_to_create)}")
+            self.cluster_manager.create_namespaces(list(namespaces_to_create))
+        else:
+            logger.info("No namespaces to create.")
+
+        ### end of ensure namespace creation ###
 
     @retry_with_feedback(max_attempts=3, delay=10)
     async def test_cluster(self, feedback: Optional[str] = None):
@@ -403,9 +442,9 @@ class DevopsFlow:
             )
             logger.info(f"Added record for deleted untracked files: {deleted_files_str}")
 
+        self._ensure_namespaces_exist()
+
         logger.info("Applying manifests")
-        
-        self.cluster_manager.create_namespaces(self.blackboard.general_info.namespaces)
 
         try:            
             self.apply_k8s_config()
@@ -419,7 +458,7 @@ class DevopsFlow:
             issue = Issue(
                 issue="Error applying the manifests",
                 severity=SEVERITY_HIGH,
-                problem_description=error + "\n\n Ignore any warnings, focus on the fatal errors",
+                problem_description=error + "\n\n Ignore any warnings about namespace, focus on the fatal errors, and other warnings.",
                 possible_manifest_file_path="see the description of the issue",
                 observations="Apply failed",
             )
@@ -428,41 +467,48 @@ class DevopsFlow:
             return
 
         logger.info("Waiting up to 10 seconds before testing cluster, checking for kill signal...")
-        for _ in range(100): # Check every 0.1 seconds for 10 seconds
+        # Wait up to 10 s, checking for kill-signal every 0.1 s
+        for _ in range(100):
             if self.kill_signal.is_set():
                 logger.info("Kill signal detected during wait in test_cluster. Aborting.")
                 return
-            time.sleep(0.1)
+            await asyncio.sleep(0.1)
         logger.info("Testing cluster")
 
         crew = TestCrew(path=self.path).crew()
 
-        results = await crew.kickoff_async(
-            inputs={
-                "blackboard": self.blackboard.export_blackboard(show_advanced_plan=False, show_records=False, show_high_issues=False, show_medium_issues=False, show_low_issues=False),
-                "feedback": feedback,
-            }
-        )
+        logger.info("Testing cluster - kickoff_async")
+        try:
+            results = await crew.kickoff_async(
+                inputs={
+                    "blackboard": self.blackboard.export_blackboard(show_advanced_plan=False, show_records=False, show_high_issues=False, show_medium_issues=False, show_low_issues=False),
+                    "feedback": feedback,
+                }
+            )
 
-        issues = results.tasks_output[4].json_dict['issues']
-        logger.info(10*"\n" + f"Issues: {issues}")
+            logger.info("Testing cluster - kickoff_async - results task 4")
+            issues = results.tasks_output[3].json_dict['issues']
 
-        record = results.tasks_output[5].json_dict
-        logger.info(10*"\n" + f"Record: {record}")
+            logger.info("Testing cluster - kickoff_async - results task 5")
+            record = results.tasks_output[4].json_dict
+        except asyncio.CancelledError as e:
+            logger.warning(f"TestCrew kickoff was cancelled: {e}")
+            raise # Re-raise for the retry decorator
+        except Exception as e:
+            logger.exception("An unexpected error occurred during TestCrew kickoff")
+            raise
 
         for issue in issues:
             if 'created_at' in issue:
                 issue.pop('created_at')
-        logger.info(10*"\n" + f"Issues after removing created_at: {issues}")
 
-        if 'created_at' in record:
-            record.pop('created_at')
-        logger.info(10*"\n" + f"Record after removing created_at: {record}")
-
+        logger.info("Testing cluster - kickoff_async - Update blackboard Issues and Records")
         self.blackboard.issues = [Issue(**issue) for issue in issues]
-        self.blackboard.records.append(Record(**record))
-        logger.info(10*"\n" + f"Blackboard: updated")
 
+        logger.info("Testing cluster - kickoff_async - Update blackboard Record")
+        self.blackboard.records.append(Record(**record))
+
+        logger.info("Testing cluster - kickoff_async - Delete k8s config")
         try:
             self.delete_k8s_config()
         except Exception as ex:
@@ -470,27 +516,41 @@ class DevopsFlow:
 
 
     @retry_with_feedback(max_attempts=3, delay=10)
-    async def basic_improve(self, issues_by_manifest: dict[str, list[Issue]], feedback: Optional[str] = None):   
+    async def basic_improve(self, issues: list[Issue], feedback: Optional[str] = None):   
         
-        executions = []
-        for key, value in issues_by_manifest.items():
-            executions.append(
-                BasicImproveCrew(path=self.path).crew().kickoff_async(
+        issues = [issue.model_dump() for issue in issues]
+
+        result = await BasicImproveCrew(path=self.path).crew().kickoff_async(
                     inputs={
-                        "blackboard": self.blackboard.export_blackboard(show_advanced_plan=False, show_manifests=False),
+                        "blackboard": self.blackboard.export_blackboard(show_advanced_plan=False, show_manifests=True),
                         "feedback": feedback,
-                        "issues": [issue.model_dump() for issue in value],
+                        "issues": issues,
                     }
                 )
-            )
 
-        results = await asyncio.gather(*executions)
+        json_record = result.json_dict
+        if 'created_at' in json_record:
+            json_record.pop('created_at')
+        self.blackboard.records.append(Record(**json_record))
 
-        for result in results:
-            json_record = result.json_dict
-            if 'created_at' in json_record:
-                json_record.pop('created_at')
-            self.blackboard.records.append(Record(**json_record))
+
+    @retry_with_feedback(max_attempts=3, delay=10)
+    async def low_importance_improve(self, issues: list[Issue], feedback: Optional[str] = None):   
+        
+        issues = [issue.model_dump() for issue in issues]
+
+        result = await BasicImproveCrew(path=self.path).crew().kickoff_async(
+                    inputs={
+                        "blackboard": self.blackboard.export_blackboard(show_advanced_plan=False, show_manifests=True),
+                        "feedback": feedback,
+                        "issues": issues,
+                    }
+                )
+
+        json_record = result.json_dict
+        if 'created_at' in json_record:
+            json_record.pop('created_at')
+        self.blackboard.records.append(Record(**json_record))
       
 
     ############################################
@@ -523,11 +583,13 @@ class DevopsFlow:
         # Ensure the version-control repository exists in TEMP_FILES_DIR so that
         # subsequent tools can safely add/commit files.
 
-        fv = services.get(f"file_versioning_{self.path}")  # singleton instance
-        fv._ensure_repo()  # pylint: disable=protected-access
+        # fv = services.get(f"file_versioning_{self.path}")  # singleton instance
+        # fv._ensure_repo()  # pylint: disable=protected-access
 
         self.kind_manager.recreate_cluster()
         self.cluster_manager = ClusterManager(base_dir=os.getenv("TEMP_FILES_DIR", "temp")) # TODO: This should be a service
+        
+        logger.info("Creating namespaces: " + str(self.blackboard.general_info.namespaces))
         self.cluster_manager.create_namespaces(self.blackboard.general_info.namespaces)
 
 
@@ -535,59 +597,82 @@ class DevopsFlow:
         if self.kill_signal.is_set():
             logger.info("Kill signal detected at start of first_approach_flow. Aborting.")
             return
-        executions = []
 
         logger.info("First approach flow")
-        for manifest in self.blackboard.manifests:
-            execution = self.first_approach(manifest)
-            executions.append(execution)
-
-        results = await asyncio.gather(*executions)
-        for result in results:
-            json_record = result.json_dict
-            if 'created_at' in json_record:
-                json_record.pop('created_at')
-            self.blackboard.records.append(Record(**json_record))
-            
+        result = await self.first_approach(self.blackboard.manifests)
+        json_record = result.json_dict
+        if 'created_at' in json_record:
+            json_record.pop('created_at')
+        self.blackboard.records.append(Record(**json_record))   
 
     async def basic_test_and_improve_flow(self):
-        
-        for i in range(10):
-            self.blackboard.iterations += 1
+        try:
+            for iteration in range(10):
+                self.blackboard.iterations += 1
 
-            if self.kill_signal.is_set():
-                logger.info(f"Kill signal detected in basic_test_and_improve_flow loop, iteration {i}. Aborting.")
-                return # Exit the flow method    
+                if self.kill_signal.is_set():
+                    logger.info(f"Kill signal detected in basic_test_and_improve_flow loop, iteration {iteration}. Aborting.")
+                    return  # Exit the flow method
 
-            self.blackboard.phase = "Testing"
-            await self.test_cluster()
+                self.blackboard.phase = "Testing"
+                logger.info(f"Starting testing iteration {iteration + 1}...")
+                await self.test_cluster()
+                logger.info(f"Testing iteration {iteration + 1} completed.")
 
-            issues = self.blackboard.issues
-            high_issues = [issue for issue in issues if issue.severity == SEVERITY_HIGH]
-            
-            # Group high severity issues by possible_manifest_file_path
-            issues_by_manifest = {}
-            for issue in high_issues:
-                manifest_path = issue.possible_manifest_file_path
-                if manifest_path not in issues_by_manifest:
-                    issues_by_manifest[manifest_path] = []
-                issues_by_manifest[manifest_path].append(issue)
+                try:
+                    issues = self.blackboard.issues
+                    high_issues = [issue for issue in issues if issue.severity == SEVERITY_HIGH]
+                    medium_issues = [issue for issue in issues if issue.severity == SEVERITY_MEDIUM]
+                    low_issues = [issue for issue in issues if issue.severity == SEVERITY_LOW]
+                except Exception as e:
+                    self.blackboard.phase = "Error while processing issues"
+                    logger.error(f"Error getting issues: {str(e)}")
+                    continue
 
-            if len(high_issues) == 0:
-                break
+                if high_issues:
+                    self.blackboard.phase = "Improving High Severity Issues"
+                    logger.info(f"Found {len(high_issues)} high-severity issues. Starting improvement phase...")
+                    self._ensure_namespaces_exist()
+                    await self.basic_improve(high_issues)
+                    logger.info("Improvement phase for high-severity issues completed.")
+                elif medium_issues:
+                    self.blackboard.phase = "Improving Medium and Low Severity Issues"
+                    issues_to_fix = medium_issues + low_issues
+                    logger.info(f"Found {len(medium_issues)} medium-severity and {len(low_issues)} low-severity issues. Starting improvement phase...")
+                    self._ensure_namespaces_exist()
+                    await self.low_importance_improve(issues_to_fix)
+                    logger.info("Improvement phase for medium and low-severity issues completed.")
+                else:
+                    logger.info("No high or medium-severity issues found. Exiting test and improve flow.")
+                    break
 
-            self.blackboard.phase = "Improving"
-            await self.basic_improve(issues_by_manifest)
+        except Exception as e:
+            logger.error(f"An unexpected error occurred in basic_test_and_improve_flow: {e}")
+            logger.error(traceback.format_exc())
+            # Re-raising the exception can help in debugging if something else is catching it
+            raise
             
 
     async def kickoff(self):
         try:
+            loop = asyncio.get_running_loop()
+
+            def loop_exception_handler(loop, context):
+                logger.error(
+                    "ASYNCIO EXCEPTION: %s", context.get("message"),
+                    exc_info=context.get("exception")
+                )
+
+            loop.set_exception_handler(loop_exception_handler)
+
             logger.info("Starting DevopsFlow kickoff in 10 seconds...")
-            time.sleep(10)
+            await asyncio.sleep(10)
 
             unique_time_id = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
             mlflow.set_experiment(f"devops_flow_{unique_time_id}")
             mlflow.crewai.autolog()
+
+            # Flow begings here                
 
             if self.kill_signal.is_set():
                 logger.info("Kill signal detected at the very start of kickoff. Aborting.")
@@ -614,45 +699,53 @@ class DevopsFlow:
                 logger.info("Kill signal detected after per_resource_research_flow. Aborting kickoff.")
                 return
 
-            self.blackboard.phase = "Preparing Environment"
-            await self.prepare_environment_flow()
-
-            if self.kill_signal.is_set(): # Check before starting async flow
-                logger.info("Kill signal detected before first_approach_flow. Aborting kickoff.")
-                return
+            ###################################
+            #
+            # Start of saving/loading blackboard
+            #
+            ###################################
 
             # with open("blackboard.pkl", "rb") as f:
             #     self.blackboard = pickle.load(f)
             #     services._cache["blackboard"] = self.blackboard
-            #     pprint(self.blackboard)
 
-            with open("blackboard.pkl", "wb") as f:
-                pickle.dump(self.blackboard, f)
+            # with open("blackboard.pkl", "wb") as f:
+            #     pickle.dump(self.blackboard, f)
 
-            self.blackboard.phase = "First Code Approach"
-            await self.first_approach_flow()
+            ###################################
+            #
+            # End of saving/loading blackboard
+            #
+            ###################################
 
-            if self.kill_signal.is_set(): # Check before resetting cluster
-                logger.info("Kill signal detected before resetting cluster. Aborting kickoff.")
+            self.blackboard.phase = "Preparing Environment"
+            await self.prepare_environment_flow()            
+
+            if self.kill_signal.is_set(): # Check before starting async flow
+                logger.info("Kill signal detected before first_approach_flow. Aborting kickoff.")
                 return
             
-            self.blackboard.phase = "Resetting Cluster"
-            self.reset_cluster()
+            self.blackboard.phase = "First Code Approach"
+            await self.first_approach_flow()
 
             if self.kill_signal.is_set(): # Check before starting test and improve flow
                 logger.info("Kill signal detected before basic_test_and_improve_flow. Aborting kickoff.")
                 return
             
-            self.blackboard.phase = "Basic Test and Improve"
+            self.blackboard.phase = "Test and Improve"
             await self.basic_test_and_improve_flow()
 
             self.blackboard.phase = "Completed"
             logger.info("DevopsFlow kickoff completed.")
 
             logger.info(self.blackboard.model_dump())
+        except asyncio.CancelledError as e:
+            logger.warning("kickoff() was cancelled: %s", e, exc_info=True)
+            raise  # let retry/outer layer see it
         except Exception as e:
-            logger.error(f"Error during kickoff: {str(e)}", exc_info=True)
-            self.blackboard.phase = f"DevopsFlow failed {str(e)}"
+            logger.exception("Error during kickoff")
+            self.blackboard.phase = f"DevopsFlow failed: {e}"
         finally:
+            # Ensure the kill signal is set on any exit, clean or error
             self.kill_signal.set()
-            
+            logger.info("DevopsFlow kickoff finished. Kill signal set.")

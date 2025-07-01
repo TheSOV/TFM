@@ -13,20 +13,20 @@ class GatherInformationCrew(BaseCrew):
     def gather_information(self) -> Task:
         return Task(
             config=self.tasks_config['gather_information'], # type: ignore[index]
-            guardrails=[validate_min_output_length_for_long_text]
+            guardrail=validate_min_output_length_for_long_text
             )
     
     @task
     def research_project(self) -> Task:
         return Task(
             config=self.tasks_config['research_project'], # type: ignore[index]
-            guardrails=[validate_min_output_length_for_long_text]
+            guardrail=validate_min_output_length_for_long_text
         )
     
     @task
     def create_advanced_plan(self) -> Task:
         return Task(
             config=self.tasks_config['create_advanced_plan'], # type: ignore[index]
-            guardrails=[validate_min_output_length_for_long_text]   
+            guardrail=validate_min_output_length_for_long_text  
         )    
     

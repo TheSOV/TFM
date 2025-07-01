@@ -9,7 +9,6 @@ import subprocess
 import os
 import logging
 from pathlib import Path
-from dotenv import load_dotenv
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -31,8 +30,7 @@ class KindManager:
             k8s_version: Optional Kubernetes version to use. If not provided,
                        it will be loaded from the .env file.
         """
-        load_dotenv()
-        self.k8s_version = k8s_version or os.getenv("K8S_VERSION", "v1.31.1")
+        self.k8s_version = k8s_version
         self.kind_image = f"kindest/node:{self.k8s_version}"
         logger.info(f"Initialized KindClusterManager with Kubernetes version: {self.k8s_version}")
     

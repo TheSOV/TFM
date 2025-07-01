@@ -13,7 +13,7 @@ class DefinePreliminartStructureCrew(BaseCrew):
     def define_project_structure(self) -> Task:
         return Task(
             config=self.tasks_config['preliminary_structure'], # type: ignore[index]
-            guardrails=[validate_min_output_length_for_long_text]
+            guardrail=validate_min_output_length_for_long_text
         )
 
     @task

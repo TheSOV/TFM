@@ -3,13 +3,23 @@ from typing import List
 from crewai import Agent, Crew, Task, Process
 from crewai.project import CrewBase, agent, task, crew, before_kickoff, after_kickoff
 from crewai.agents.agent_builder.base_agent import BaseAgent
-
-import src.crewai.devops_flow.crews.devops_crew.outputs.outputs as outputs
-import src.crewai.devops_flow.crews.devops_crew.guardrails.guardrails as guardrails
+from crewai.knowledge.source.text_file_knowledge_source import TextFileKnowledgeSource
+from crewai.knowledge.knowledge_config import KnowledgeConfig
+import os
 
 import src.services_registry.services as services
 
 from os import getenv
+
+crew_knowledge_base_path = os.path.join(os.getcwd(), 'knowledge', 'crew')
+files = []
+
+for file in os.listdir(crew_knowledge_base_path):
+    files.append(os.path.join("crew", file))
+
+crew_knowledge_source = TextFileKnowledgeSource(file_paths=files)
+crew_knowledge_config = KnowledgeConfig(results_limit=5, score_threshold=0.5)
+
 
 @CrewBase
 class BaseCrew:
@@ -53,14 +63,18 @@ class BaseCrew:
             function_calling_llm=getenv("AGENT_TOOL_CALL_MODEL"),
             verbose=False,
             tools=[
-                services.get(f"file_create_{self.path}"),
-                services.get(f"file_edit_{self.path}"),
-                services.get(f"file_read_{self.path}"),
-                services.get(f"file_version_history_{self.path}"),
-                services.get(f"file_version_diff_{self.path}"),
-                services.get(f"file_version_restore_{self.path}"),
+                # services.get(f"file_create_{self.path}"),
+                # services.get(f"file_edit_{self.path}"),
+                # services.get(f"file_read_{self.path}"),
+                # services.get(f"file_version_history_{self.path}"),
+                # services.get(f"file_version_diff_{self.path}"),
+                # services.get(f"file_version_restore_{self.path}"),
+                services.get(f"yaml_read_{self.path}"),
+                services.get(f"yaml_edit_{self.path}"),
                 services.get(f"config_validator_{self.path}"),
             ],
+            knowledge_sources=[crew_knowledge_source],
+            knowledge_config=crew_knowledge_config,
         )
 
     @agent
@@ -76,10 +90,11 @@ class BaseCrew:
                 services.get("web_browser_tool"),
                 services.get("docker_image_analysis_tool"),
                 services.get("docker_search_images_tool"),
-                services.get(f"file_read_{self.path}"),
-                services.get(f"file_version_history_{self.path}"),
-                services.get(f"file_version_diff_{self.path}"),
-            ],
+                services.get(f"yaml_read_{self.path}"),
+                # services.get(f"file_read_{self.path}"),
+                # services.get(f"file_version_history_{self.path}"),
+                # services.get(f"file_version_diff_{self.path}"),
+            ]
         )
 
     @agent
@@ -91,9 +106,10 @@ class BaseCrew:
             verbose=False,
             tools=[
                 services.get(f"kubectl_{self.path}"),
-                services.get(f"file_read_{self.path}"),
+                # services.get(f"file_read_{self.path}"),
+                services.get(f"yaml_read_{self.path}"),
                 services.get("popeye_scan"),
-            ],
+            ]
         )
 
     @crew

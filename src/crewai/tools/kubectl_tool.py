@@ -124,4 +124,7 @@ class KubectlTool(BaseTool):
                 
         # Rebuild and execute the command
         processed_command = ' '.join(processed_parts)
-        return self.kubectl.execute(processed_command)
+        try:
+            return self.kubectl.execute(processed_command)
+        except ValueError as e:
+            return f"Error: {e}"

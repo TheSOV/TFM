@@ -10,6 +10,8 @@ import io
 from yamllint import linter
 from yamllint.config import YamlLintConfig
 
+
+
 def run_yamllint(content: str, config_path: Optional[str] = None) -> List[Dict[str, Any]]:
     """
     Run yamllint on YAML content to find issues like duplicate keys.
@@ -113,7 +115,8 @@ def validate_yaml_file(file_path: Path) -> Dict[str, Any]:
                 {
                     'index': int,     # Document index (0-based)
                     'valid': bool,    # Validation status for this document
-                    'error': str      # Error message if invalid (None if valid)
+                    'error': str,     # Error message if invalid (None if valid)
+                    'doc': dict       # The parsed YAML document content
                 }
             ],
             'errors': [              # Detailed error information
@@ -137,6 +140,7 @@ def validate_yaml_file(file_path: Path) -> Dict[str, Any]:
         with open(file_path, 'r', encoding='utf-8') as f:
             # Read the content once to get a string representation
             content = f.read()
+
             
             # If file is empty or contains only whitespace, return success with doc_count=0
             if not content.strip():
@@ -174,7 +178,8 @@ def validate_yaml_file(file_path: Path) -> Dict[str, Any]:
                     result["documents"].append({
                         "index": i,
                         "valid": True,
-                        "error": None
+                        "error": None,
+                        "doc": doc
                     })
                     continue
                 
@@ -195,7 +200,8 @@ def validate_yaml_file(file_path: Path) -> Dict[str, Any]:
                         result["documents"].append({
                             "index": i,
                             "valid": False,
-                            "error": error_msg
+                            "error": error_msg,
+                            "doc": doc
                         })
                         
                         # Add detailed error info for each issue in this document
@@ -209,7 +215,6 @@ def validate_yaml_file(file_path: Path) -> Dict[str, Any]:
                             result["errors"].append({
                                 "type": error_type,
                                 "message": f"{issue['message']} ({issue['rule']}) at line {issue['line']}, column {issue['column']}",
-                                "path": str(file_path),
                                 "doc_index": i
                             })
                         continue
@@ -218,7 +223,8 @@ def validate_yaml_file(file_path: Path) -> Dict[str, Any]:
                 result["documents"].append({
                     "index": i,
                     "valid": True,
-                    "error": None
+                    "error": None,
+                    "doc": doc
                 })
             
         return result
@@ -253,7 +259,6 @@ def validate_yaml_file(file_path: Path) -> Dict[str, Any]:
         result["errors"].append({
             "type": "YAMLError",
             "message": error_msg,
-            "path": str(file_path),
             "doc_index": doc_index
         })
         return result
@@ -265,7 +270,6 @@ def validate_yaml_file(file_path: Path) -> Dict[str, Any]:
         result["errors"].append({
             "type": "Error",
             "message": f"Error reading file: {str(e)}",
-            "path": str(file_path),
             "doc_index": 0  # Default to first document for general errors
         })
         return result

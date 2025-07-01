@@ -4,6 +4,7 @@ from src.crewai.devops_flow.crews.devops_crew.BaseCrew import BaseCrew
 from src.services_registry import services
 from src.crewai.devops_flow.blackboard.utils.Record import Record
 from src.crewai.devops_flow.crews.devops_crew.guardrails.guardrails import validate_min_output_length_for_long_text
+import src.crewai.devops_flow.crews.devops_crew.outputs.outputs as outputs
 
 @CrewBase   
 class BasicImproveCrew(BaseCrew):
@@ -14,19 +15,19 @@ class BasicImproveCrew(BaseCrew):
     def analyse_manifest_issue(self) -> Task:
         return Task(
             config=self.tasks_config['analyse_manifest_issue'], # type: ignore[index]
-            tools=[
-                services.get(f"file_read_{self.path}"),
-                services.get(f"file_version_history_{self.path}"),
-                services.get(f"file_version_diff_{self.path}"),
-                services.get(f"config_validator_{self.path}"),
-                ],
-            guardrails=[validate_min_output_length_for_long_text]
+            output_json=outputs.Solutions
         )
 
     @task
     def apply_manifest_fix(self) -> Task:
         return Task(
             config=self.tasks_config['apply_manifest_fix'], # type: ignore[index]
+        )
+
+    @task
+    def verify_solution(self) -> Task:
+        return Task(
+            config=self.tasks_config['verify_solution'], # type: ignore[index]
         )
 
     @task

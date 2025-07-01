@@ -32,6 +32,9 @@ gather_information:
     • **External Dependencies** - DBs, caches, cloud services.  
     • **Platform Constraints** - ARM/GPU, OS distro, container runtime.  
     • **Namespaces** - define the namespaces that will be used in the cluster
+    • **Ports** - define if the ports that will be used  by the images are privileged ports (-1024) or unprivileged ports (+1024).
+    Prefer unprivileged ports (+1024) and remember to map them to the original port using the services. If not using privileged 
+    ports and or default ports (+1024), remember you might need to declare the them in configmap or service.
     • **Capabilities** - define the capabilities that will be dropped and that will be added to the cluster
     • **Manifests Layout** - repo tree *for test only*; no overlays:
       ```
@@ -54,6 +57,12 @@ gather_information:
        - Ensure to specify for each tentative yaml file, the elements and configurations
        that are relative to it. Never mix two resources in the same yaml file during the 
        planification steps.
+
+       - At this point, do not include any specific image version, ports, users, users groups,
+       etc. You will do it in the next steps.
+
+       - Your focus is to create a minimal, secure and production ready plan. Focus on the k8s 
+       implementation, and the minimal image configuration required to implement it.
     </Important>
 
     <blackboard>
@@ -100,6 +109,10 @@ research_project:
        - Ensure to specify for each tentative yaml file, the elements and configurations
        that are relative to it. Never mix two resources in the same yaml file during the 
        planification steps.
+       - At this point, do not include any specific image version, ports, users, users groups,
+       etc. You will do it in the next steps.
+       - Your focus is to create a minimal, secure and production ready plan. Focus on the k8s 
+       implementation, and the minimal image configuration required to implement it.
     </Important>
 
   expected_output: >
@@ -169,13 +182,15 @@ create_advanced_plan:
        - Ensure to specify for each tentative yaml file, the elements and configurations
        that are relative to it. Never mix two resources in the same yaml file during the 
        planification steps.
-    </Important>
-
-    <Important>
-      Ensure that the plan matches the request of the user requirements (except for the 
+       - Your focus is to create a minimal, secure and production ready plan. Focus on the k8s 
+       implementation, and the minimal image configuration required to implement it.
+      - Ensure that the plan matches the request of the user requirements (except for the 
       Manifests Layout, that will be high end, production ready with best practices and security).
-      The output MUST be a markdown, NOT a reference to it, 
+      - The output MUST be a markdown, NOT a reference to it, 
       like the phrase "like above".
+      - At this point, do not include any specific image version, ports, users, users groups,
+       etc. You will do it in the next steps.
+      - Take in count that we are working on a single node kind cluster.
     </Important>
 
     <blackboard>

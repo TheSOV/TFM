@@ -1,101 +1,42 @@
-think_solution:
-  description: >
-   If `<feedback>` is present, address it first. Otherwise, proceed with the task.
-
-        **If `<feedback>` exists, resolve it first.**
-
-    **Goal — draft a functional manifest**
-
-    During this step no file should be created or modified. This is a plan step.
-    Follow the indications of the basic plan in the blackboard.
-
-    1. **Analyse requirements** - read `<manifest>` metadata and <blackboard>
-       context and make a plan to draft a functional manifest. 
-    2. **Resolve gaps** - when any field is unclear (e.g., replica default,
-       selector-label mismatch, ConfigMap vs Secret choice, for secrets always 
-       use stringData instead of data) **query
-       devops_researcher** if you consider that any information is missing or ambiguous; 
-       otherwise pick the best practice default.  
-    3. **Author manifest** - single-document YAML, canonical field order
-       (`kubectl explain` style). Embed concise comments per best practice.  
-       Ensure that each file contains only the elements and configurations that are relative to it.
-       Never mix two resources in the same yaml file during the planification steps. Ensure that 
-       each file is self-contained and clear.
-    4. **Report** - return the YAML plus: chosen defaults, researcher Q&A,
-       validation result.
-
-
-    <Important>
-    Take on count all the details in the <resource> section and in the blackboard, esuring to take in count all 
-    informations like volumes, capabilities, ports, write permissions, volume claims, etc. All details are important.
-    </Important>
-
-    **Context Blocks**
-
-    • `<manifest>` - Target resource metadata (kind, name, namespace, image, file_path).  
-    • `<blackboard>`- Current project state and artefacts.  
-    • `<feedback>`- If present, addressing the feedback takes top priority.
-
-
-    <manifest>
-
-    {manifest}
-
-    </manifest>
-
-
-    <blackboard>
-
-    {blackboard}
-
-    </blackboard>
-
-
-    <feedback>
-
-    {feedback}
-
-    </feedback>
-
-  expected_output: >
-    • Final YAML manifest (code block)  
-    • Justifications and defaults  
-    • Any researcher exchange  
-    • Local validation outcome
-
-    The output NEEDS to be the plain text, not a markdown document, and not a reference
-    tp a previous file. The last answer is the report integrally.
-  max_retries: 3
-  agent: devops_researcher
-
 write_solution:
   description: >
     **If `<feedback>` exists, resolve it first.**
 
     **Goal — persist, lint, iterate until clean**
     Using the context you received from the previous step, persist the YAML file
-    and lint it until it passes validation. It is important to follow the 
-    instructions given by the devops_researcher in the context.
+    and lint it until it passes validation or validation errors received are not critical.
 
     **Workflow**
-
-    1. **Edit / create** -  
-       `Action: edit_file  Action_Inputs: { ... }`  
-       (include rich `# comments` per Botkube/KodeKloud guidance).  
+    1. **Analyze** -  
+       Analyze all the manifests in the <manifest>, create a compiled version of the yaml file
+       with all the resources and ensure that all the resources are correct and valid. All this 
+       at the think level, without any action.
+    2. **create** -  
+       `Action: create_file  Action_Inputs: { ... }`  
+       Include the new definitions in the file. 
+       End each resource with ---, to leave the next file ready to be edited.
     2. **Validate loop** -  
-       a. `Action: validate_manifest with security_scan: true`  
-       b. If errors, patch & repeat; after **3 failures** or a new error
-          category, **escalate to _devops_researcher_** with the offending log.   
-    3. **Success** - final action *must* be a passing validation call (except for low severity security_scan).
+       `Action: config_validator  Action_Inputs: { ... }`  
+       Analyze the validation until the validation is successful. Try to make the manifests comply with the best
+       practices as much as possible.
+    3. **Success** - final action *must* be a passing validation call 
+       (except for low severity security_scan, after not being possible to be solved).
 
     <Important>
-    Take on count all the details in the <resource> section and in the blackboard, esuring to take in count all 
-    informations like volumes, capabilities, ports, write permissions, volume claims, etc. All details are important.
+    * Take on count all the details in the <resource> section and in the blackboard, 
+    ensuring to take in count all informations like volumes, capabilities, ports, 
+    write permissions, volume claims, etc. All details are important.
+    * The file to be edited/created is the one in the <blackboard>, project, file_path. No other
+    files can be created or edited.
+    * Ensure no duplicate resources are created.
+    * Be extremely careful with the Yaml and Kubernetes syntax. 
+    * Ensure to write all the solution, it is very probable that there is no content in the file, 
+    so write all the solution. 
     </Important>
 
-    <manifest>
-    {manifest}
-    </manifest>
+    <manifests>
+    {manifests}
+    </manifests>
 
     <feedback>
     {feedback}
@@ -103,29 +44,90 @@ write_solution:
 
   expected_output: >
     Ordered tool calls ending with:  
-    `Action: edit_file  Action_Inputs: { ... }`  
-    `Action: validate_manifest  Action_Inputs: { "security_scan": true }`  
-    Validation must succeed (except for low severity security_scan).
+    `Action: yaml_edit  Action_Inputs: { ... }`  
+    `Action: config_validator  Action_Inputs: { "enable_security_scan": true }`  
+    Validation must succeed (except for low severity security_scan, Try to make the manifests comply with the best
+    practices as much as possible).
 
-    **Important**: The creattion of the YAML file is **ABSOLUTLY MANDATORY**, otherwise, task will fail.
+    <Important>
+    Pay special attention to all the fields of the validation output, and try to fix them all, with
+    the exception of security_scan errors, that are at your consideration to be fixed or not, 
+    depending on the severity or the level of contradiction with the configuration you require.
+    Editing the file is mandatory. You can also avoid repetitive triggers by skipping some of the security_scan checks filling
+    the skip_checks parameter with the check IDs you want to skip.
+    Annotations cant be a "#":"some annotation".
+    </Important>
   max_retries: 3
   agent: devops_engineer
 
+verify_solution:
+  description: >
+    Use the config_validator tool to validate the solution, the yaml_read tool to read the file
+    and the yaml_edit tool to edit the file and apply the required corrections when necessary.
+
+    Fix the issues in the  following order:
+    1. yaml syntax errors
+    2. kubernetes syntax errors
+    3. duplicated elements
+    4. kubernetes --dry-run errors
+    5. security_scan high risk errors
+    6. security_scan medium risk errors
+    7. security_scan low risk errors
+    8. best practices errors
+
+    <Steps>
+    1. Use the config_validator tool to validate the solution.
+    2. If the validation fails, use the yaml_read tool to read the file. You can read the full file or
+    a specific line range.
+    3. Use the yaml_edit tool to edit the file and apply the required corrections when necessary.
+    4. Check for duplicated elements in the file and remove them.
+    5. Repeat steps 1-4 until the validation passes. Its is mandatory to read before editing.
+    </Steps>
+
+    to end, the file must be valid and comply with the best practices. Only if it is not possible
+    to meet some low risk errors, or best practices errors, you can mark the task as completed even
+    when those two points are not met. The rest of the requirements (1 to 6) must be met.
+
+    <Important>
+    - Pay special attention to all the fields of the validation output, and try to fix them all, with
+    the exception of security_scan errors, that are at your consideration to be fixed or not, 
+    depending on the severity or the level of contradiction with the configuration you require.
+    - If a security_scan error is found, but it is in contradiction with a configuration you 
+    require (a capability, a port, a volume, a user, a user group, etc), ignore it and mark the 
+    task as completed. You can also avoid repetitive triggers by skipping some of the security_scan checks filling
+    the skip_checks parameter with the check IDs you want to skip.
+    </Important>
+
+  expected_output: >
+    Ordered tool calls ending with:  
+    `Action: config_validator  Action_Inputs: { "enable_security_scan": true }` 
+    `Action: yaml_read  Action_Inputs: { ... }` (if needed)  
+    `Action: yaml_edit  Action_Inputs: { ... }` (if needed)  
+    `Action: config_validator  Action_Inputs: { "enable_security_scan": true }`  (if needed) 
+    Validation must succeed (except for low severity security_scan, Try to make the manifests comply with the best
+    practices as much as possible).
+
+    <Important>
+    - Pay special attention to all the fields of the validation output, and try to fix them all, with
+    the exception of security_scan errors, that are at your consideration to be fixed or not, 
+    depending on the severity or the level of contradiction with the configuration you require.
+    - Editing the file is mandatory. You can also avoid repetitive triggers by skipping some of the security_scan checks filling
+    the skip_checks parameter with the check IDs you want to skip.
+    - Remember labels cant include whitespace, so use _ or - instead of space.
+    </Important>
+  max_retries: 3
+  agent: devops_engineer
 
 log_solution:
   description: >
     **Goal — create a record**
 
-    Summarise, in no more that 50 words, the actions taken in the previous step,
+    Summarise, in no more that 300 words, the actions taken in the previous step,
     which is mentioned as context.
 
-    • Root-cause & symptom  
-    • Key YAML edits  
-    • Validation success  
-    • Any open caveats / follow-ups (e.g., will add HPA later)
   expected_output: >
-    Plain-text paragraph max 50 words as described, en 3 person, past tense, professional tone.
+    Plain-text paragraph max 300 words as described, en 3rd person, past tense, professional tone.
   max_retries: 3
   context:
    - write_solution
-  agent: devops_engineer
+  agent: devops_researcher

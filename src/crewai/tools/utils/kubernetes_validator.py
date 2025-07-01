@@ -73,14 +73,13 @@ def validate_kubernetes_manifest(file_path: Path) -> Dict[str, Any]:
                 error_details = {
                     "type": "ValidationError",
                     "message": f"{'.'.join(map(str, getattr(e, 'path', [])))}: {getattr(e, 'message', str(e))}",
-                    "path": str(file_path),
                     "resource": f"{resource_kind}/{resource_name}",
                     "error_type": type(e).__name__,
-                    "full_exception": str(e),
-                    "traceback": traceback.format_exc()
+
                 }
                 if hasattr(e, "schema_path"):
-                    error_details["schema_path"] = e.schema_path
+                    # Convert deque to list to ensure JSON serializability
+                    error_details["schema_path"] = list(e.schema_path)
 
                 result["errors"].append(error_details)
 
@@ -92,7 +91,6 @@ def validate_kubernetes_manifest(file_path: Path) -> Dict[str, Any]:
                 result["errors"].append({
                     "type": "SchemaError",
                     "message": f"Schema not found for version {k8s_version}. {str(e)}. Probably the definition of the apiVersion is not correct. Please check the apiVersion of the manifest.",
-                    "path": str(file_path),
                     "resource": f"{manifest.get('kind', 'Unknown')}/{manifest.get('metadata', {}).get('name', 'unknown')}"
                 })
                 
@@ -103,7 +101,6 @@ def validate_kubernetes_manifest(file_path: Path) -> Dict[str, Any]:
         result["errors"].append({
             "type": "YAMLError",
             "message": f"Invalid YAML: {str(e)}",
-            "path": str(file_path),
             "resource": "Unknown"
         })
         
@@ -114,7 +111,6 @@ def validate_kubernetes_manifest(file_path: Path) -> Dict[str, Any]:
         result["errors"].append({
             "type": type(e).__name__,
             "message": f"Unexpected error: {str(e)}",
-            "path": str(file_path),
             "resource": "Unknown"
         })
     

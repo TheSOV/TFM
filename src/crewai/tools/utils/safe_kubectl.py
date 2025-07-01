@@ -1,7 +1,6 @@
 # safe_kubectl.py
 import shlex
 import subprocess
-import sys
 from pathlib import Path
 from typing import List, Set, Optional
 
@@ -28,7 +27,7 @@ class SafeKubectl:
         self.kubectl = Path(kubectl_path)
         self.allowed_verbs = allowed_verbs or {
             "get", "describe", "logs", "apply", "diff", "delete",
-            "create", "patch", "exec", "cp", "rollout", "scale",
+            "create", "patch", "exec", "cp", "rollout", "scale", "version"
         }
         # If safe_namespaces is None, it means all namespaces are allowed (except denied ones)
         self.safe_namespaces = safe_namespaces
@@ -43,8 +42,8 @@ class SafeKubectl:
         }
     
     def _reject(self, msg: str) -> None:
-        """Exit with an error message."""
-        sys.exit(f"[safe-kubectl] BLOCKED: {msg}")
+        """Raise a ValueError with an error message."""
+        raise ValueError(f"[safe-kubectl] BLOCKED: {msg}")
     
     def _parse(self, cmd: str) -> List[str]:
         """Parse and validate the command string."""

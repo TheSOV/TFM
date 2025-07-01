@@ -51,7 +51,6 @@ def validate_docker_compose(file_path: str) -> Dict[str, Any]:
             result["errors"].append({
                 "type": "FileNotFoundError",
                 "message": f"Docker Compose file not found: {file_path}",
-                "path": str(compose_path),
                 "service": None
             })
             return result
@@ -63,7 +62,6 @@ def validate_docker_compose(file_path: str) -> Dict[str, Any]:
             result["errors"].append({
                 "type": "ValueError",
                 "message": f"Path is not a file: {file_path}",
-                "path": str(compose_path),
                 "service": None
             })
             return result
@@ -101,7 +99,6 @@ def validate_docker_compose(file_path: str) -> Dict[str, Any]:
         result["errors"].append({
             "type": "ValidationError",
             "message": error_message,
-            "path": str(compose_path),
             "service": service_name
         })
         
@@ -112,7 +109,6 @@ def validate_docker_compose(file_path: str) -> Dict[str, Any]:
         result["errors"].append({
             "type": type(e).__name__,
             "message": str(e),
-            "path": str(compose_path) if 'compose_path' in locals() else file_path,
             "service": None
         })
     

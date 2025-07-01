@@ -26,7 +26,7 @@ window.ManifestsTree = {
       const root = { children: [], id: '__root__' }; // A temporary root
 
       this.manifestsData.forEach(manifest => {
-        const path = manifest.file_path; // Get path from manifest object
+        const path = manifest.title; // Get path from manifest object
         // content will be derived from manifest for leaf nodes
         const parts = path.replace(/^\.\\/, '').replace(/^\.\//, '').split(/[\\/]/); // Normalize and split path
         let currentNode = root;
@@ -139,7 +139,7 @@ window.ManifestsTree = {
      */
     getOtherDetails(details) {
       if (!details) return {};
-      const { file_path, description, ...otherDetails } = details;
+      const { title, description, ...otherDetails } = details;
       return otherDetails;
     }
   },

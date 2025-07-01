@@ -15,9 +15,10 @@ popeye_scan:
     most useful information to the devops engineer.
 
     <Important>
-    Ignore the pods owned by Kubernetes core system.
+    - Ignore the pods owned by Kubernetes core system.
+    - Focus on extracting relevant information, about all the possible issues found in the cluster,
+    only taking in count the information obtained from the tools.
     </Important>
-
 
     <blackboard>
     {blackboard}
@@ -110,7 +111,8 @@ kubectl_status_check:
 
   expected_output: >
     A detailed plain text summary of the cluster issues, describing in detail the problem
-    and analyzing deeply the cause of each issue.
+    and analyzing deeply the cause of each issue.  Focus on extracting relevant information, about all the possible issues found in the cluster,
+    only taking in count the information obtained from the tools.
   async_execution: true
   max_retries: 3
   agent: devops_tester   
@@ -125,17 +127,6 @@ aggregate_cluster_issues:
 
     In this step set all issues as high severity. We will classify them in a later step.
 
-    **Deliverable**
-
-    For *each* issue provide:  
-    • **issue** - short technical label.  
-    * ** filepath ** - path of the file where the issue is located. Use the path mentioned in the
-        <blackboard>  
-    • **problem_description** - why it matters (1-2 sentences).  
-    • **possible_manifest_file_path** - if traceable (`deployment-api.yaml`, etc.).  
-    • **severity** - always High in this step. We will classify them in a later step. 
-    • **observations** - Any additional observations or comments that might result useful to solve the issue.
-  
     **Execution Workflow**
 
     1. Parse outputs of *popeye_scan* and *kubectl_status_check*.  
@@ -146,7 +137,11 @@ aggregate_cluster_issues:
     5. Produce a clean plain text checklist of issues.
 
     <Important>
-    Ignore the pods owned by Kubernetes core system.
+    - Ignore the pods owned by Kubernetes core system.
+    - Focus on extracting relevant information, about all the possible issues found in the cluster,
+    only taking in count the information obtained from the tools.
+    - Make deep analysis to merge duplicate or related items into one comprehensive,
+    well documented, issue.
     </Important>
 
     <blackboard>
@@ -181,10 +176,12 @@ classify_cluster_issues:
     **Severity Rules**
 
     • **HIGH** - Blocks core functionality (apply failures, pods never *Ready*,
-      critical micro-service outage) **Only if the issue prevents the cluster from working**.
+      critical micro-service outage) **Only if the issue prevents the cluster from working
+      such as CrashLoopBackOff, ImagePullBackOff, or any other error that prevents the 
+      pod from running and get to the state Ready**.
       No other issues should be classified as high.  
     • **MEDIUM** - Security or configuration risk that could hurt prod but does
-      not stop pods from becoming *Ready*.  
+      not stop pods from becoming *Ready* but may represent a risk to the cluster.  
     • **LOW** - Warnings, best-practice gaps, cosmetic lints.
 
     ** End of Severity Rules**
@@ -197,71 +194,31 @@ classify_cluster_issues:
     - aggregate_cluster_issues
   agent: devops_tester
 
-cluster_analyze_issues:
+log_cluster_issues:
   description: >
-    **Goal**
-    Analyze the issues from a top level perspective, 
-    identify manifests that need to be fixed,
-    and provide a concise technical log capturing problem summary,
-    redefining the issues list into a precise, actionable list of manifests to be fixed,
-    along with root causes and symptoms.
+    **Goal — create a JSON record**
+
+    Analyze the final list of cluster issues from the previous step and create a JSON record summarizing the findings.
+    The JSON object must conform to the specified schema.
 
     **Execution Workflow**
+    1. Review the output from the `classify_cluster_issues` task.
+    2. Count the number of issues for each severity level (High, Medium, Low).
+    3. Identify the single most critical issue.
+    4. Construct a `task_description` string that summarizes these findings in no more than 50 words.
+    5. Generate a final JSON object with the following fields:
+       - `agent`: "devops_tester"
+       - `task_name`: "Log Cluster Issues Summary"
+       - `task_description`: The summary you created.
 
-    1. Analyze the issues list as a whole, analyze the blackboard and last steps
-    recorded, then, relate the existent issues with the manifests that need to be fixed, with details 
-    of the errors and symptoms and the  content that should contain each manifest, in the maifests 
-    section on the blackboard.
-
-    2. Read the content of the implicated yaml files before taking decisions, to ensure the manifest is 
-    not duplicated, and that each issue points to the correct manifest.
-
-    3. If a problem affect multiple manifests, generate a issues per manifest, with the required information
-    and the same severity. Ensure that each issue is only related to one manifest, and generate as many
-    issues as needed. Ensure to add in this case relevant information, so that when fixing the issue, 
-    the manifest is not duplicated and both files are fixed accordingly. If a problem, apparently affects
-    two files, but in reality the problems is a cascading effect, generate a single issue for the root cause
-    in the yaml file that is the root cause.
-
-    4. Ensure to mark each function in the corresponding manifest. Check that duplicated manifests will not 
-    be created, by including multiple manifest in the same yaml file, if a specific yaml exists
-    for that manifest.
-
-    You have the capacity to:
-    - reassign a issue to another manifest, if needed. 
-    - reassign a issue to another severity, if needed. 
-    - merge issues, if needed. 
-    - split issues, if needed. 
-    - delete issues, if needed. 
-    - add new issues, if needed. 
-
-    You can also use all the tools at hand to investigate the issue and understand the context 
-    of the issue.
-
-    <blackboard>
-    {blackboard}
-    </blackboard>
-    
   expected_output: >
-    A concise technical issue list capturing problem summary,
-    redefining the issues list into a precise, actionable list of manifests to be fixed,
-    along with root causes and symptoms.
-     
+    A JSON object with the following structure:
+    {{
+      "agent": "devops_tester",
+      "task_name": "Log Cluster Issues Summary",
+      "task_description": "A summary of the cluster issues found, including the number of issues by severity and the most critical blocker. For example: 'Found 5 issues (2 High, 2 Medium, 1 Low). The most critical blocker is the database connection failure.'"
+    }}
   max_retries: 3
   context:
     - classify_cluster_issues
-  agent: devops_tester
-
-log_cluster_issues:
-  description: >
-    **Goal — create a record**
-
-    Summarise, in no more that 50 words, Produce a concise technical log capturing problem summary
-  expected_output: >
-    In no more that 50 words:  
-    • Number of issues found and severity mix.  
-    • Most critical blocker.   
-  max_retries: 3
-  context:
-    - cluster_analyze_issues
   agent: devops_tester

@@ -1,11 +1,13 @@
 per_resource_research:
   description: >
     **Goal**  
-    Research and design a production-grade Kubernetes manifest for the  
-    **<resource>** referenced in the **<blackboard>**.  
+    Research and design a production-grade Kubernetes manifest for each of the resources  
+    **<resources>** referenced in the **<blackboard>**.  
+
     The deliverable must anticipate and mitigate the most common volume-related
     failures—e.g. read-only mounts, missing PersistentVolumeClaims (PVCs),
-    ownership/permission mismatches, or ephemeral storage used for
+    ownership/permission mismatches, ports, configmaps mathcing the configuation of the cluster
+    with resptect to the image being used or ephemeral storage used for
     stateful data, and include, if applies, the specific information about the image being used
     that covers the previous research and any other image-specific data required.
     The final document should be *nearly deployable*,
@@ -17,97 +19,121 @@ per_resource_research:
     1. **Extract Context**  
        - Parse the **<blackboard>** for:
          - Resource kind (Deployment, StatefulSet, Job, DaemonSet, etc.).  
-         - Container image(s), tags/digests, and declared user (`USER`)
-           directives.  
+         - Container image(s), tags/digests (use the given digest in the image
+         information of the blackboard if available), and declared user (`USER`)
+           directives (if applies).  
          - Stated volume needs, data paths, temp/cache paths, and
-           configuration files.  
+           configuration files (if applies).  
          - Non-volume requirements (ports, probes, resource requests) that
-           could influence volume choices (e.g. log directories).  
+           could influence volume choices (e.g. log directories) (if applies).  
 
     2. **Deep-Dive Research (per resource type and specific for the current image being used, if applies)**  
        - Standard and optional spec fields affecting volumes:
          - `volumes`, `volumeMounts`, `volumeClaimTemplates`
-           (StatefulSet), projected volumes, `subPath`, access modes.  
+           (StatefulSet), projected volumes, `subPath`, access modes (if applies). - Sometimes, multiple subdirectories inside a same directory requires to be written,
+            make writable the parent directory or each subdirectory. For example:
+            if there is folder 1/folder 1.1/folder 1.1.1, and folder 1/folder 1.2/folder 1.2.1, and folder 1/folder 1.3/folder 1.3.1, 
+            make writable folder 1 directory.  
+          - All the directories that requires to be writable, are not present in the docker information,
+          so it would be a good idea to make a internet search for information about the image being used,
+          and check if it requires to make writable other directories that the ones in the image information
+          and explain it here.
        - Default behaviors:
          - Pod restart policies, identity retention, scheduling guarantees,
-           rolling update mechanics.  
+           rolling update mechanics (if applies).  
        - Interactions with `securityContext` (`runAsUser`, `fsGroup`,
          `readOnlyRootFilesystem`) that change filesystem ownership or
-         writability.  
+         writability (if applies).  
        - Storage backend constraints (ReadWriteOnce vs ReadWriteMany,
-         RWOP, topology hints).  
+         RWOP, topology hints) (if applies).  
        - Position and content of the ConfigMap depending on the root
-       access level.
+       access level (if applies).
        - Analyze those aspects for the current image (if applies)
+       - If possible, use non privileged ports ( +1024 if applies). 
+       If not using privileged ports and or default ports (+1024), 
+       remember you might need to declare the them in configmap or service.
+       - ** Important ** Image configurations that are not explicitly requested must be left at default, or minimum required if they are needed to be included.
+       Focus on the kubernetes deployment, ignore small, non-essential details of the image.
 
     3. **Identify Typical Pitfalls**  
-       - Writes to ConfigMap/Secret volumes for .  
-       - PVC reuse across replicas with RWO backends.  
-       - Volume name mismatches or omissions.  
-       - Shadowing image files by mounting over populated directories.  
+       - Writes to ConfigMap/Secret volumes (if applies).  
+       - PVC reuse across replicas with RWO backends (if applies).  
+       - Volume name mismatches or omissions (if applies).  
+       - Shadowing image files by mounting over populated directories (if applies).  
        - Non-root containers lacking write permissions on root-owned
-         volumes.  
+         volumes (if applies).  
        - Enabling `readOnlyRootFilesystem` without providing writable
-         scratch space.  
+         scratch space (if applies).  
        - Adding config values to the ConfigMap that container cant use
-         due to it privilege level.
+         due to it privilege level (if applies).
        - Analyze those aspects for the current image (if applies)
-       - Define the capabilities that will be dropped and that will be added to the cluster
+       - Define the capabilities that will be dropped and that will be added to the cluster 
+       (if applies)
+       - Check if the image if the image requires Privileges Scalation to use the defined 
+       capabilities (if applies)
+       - Verify if privileded ports are required or if unprivileged ports are enough (if applies, prefer always unprivileged ports)
+       - Verify if the image requires to run as root or it can be run as non-root (if applies, prefer always non-root)
+       - Remember that when you use allowPrivilegeEscalation: false, even if you use capabilities: Add
+       new capabilities will not be added, so if you will drop and add capabilities to use some 
+       privileged feature, you will need to set allowPrivilegeEscalation: true.
+       - Ensure to match the config of the ports in all the required files (deployment, service, ingress, configmap, etc.)
 
     4. **Synthesize Best-Practice Recommendations**  
-       - Volume type selection matrix (PVC vs `emptyDir` vs projected).  
-       - Access-mode guidelines.  
+       - Volume type selection matrix (PVC vs `emptyDir` vs projected) (if applies).  
+       - Access-mode guidelines (if applies).  
        - Ownership/permission recipes (`fsGroup`, init-container `chown`,
-         etc.).  
-       - Clean-up and retention policies for StatefulSet PVCs.  
+         etc.) (if applies).  
+       - Define resources for each container - this can avoid noisy neighbor issues
+       - Clean-up and retention policies for StatefulSet PVCs (if applies).  
+       - Define the securityContext for each container (if applies)
+       - Define the seccompProfile for each container (if applies)
+       - Define the automountServiceAccountToken for each container (if applies)
+       - Ensure to use only updated components, not any deprecated resources.
 
     5. **Draft Preliminary YAML**  
        - Start from a minimal, valid skeleton for the detected resource
          kind.  
        - Add fully-explained `volumes` / `volumeMounts` sections,
          annotated with inline comments for clarity.  
-       - Include securityContext tuned to container UID/GID.  
+       - Include securityContext tuned to container UID/GID. (If applies) 
        - Stub or inject ConfigMaps/Secrets with correct `readOnly`
-         semantics. For secrets always use stringData instead of data.
-       - Mark any unknowns (`## TODO`) that require operator input
-         (e.g. storageClassName).  
+         semantics. For secrets always use stringData instead of data. (If applies)
+       - Fill any unknowns with best practices defaults or minimal functional versions.  
+       - At the end, the yaml file should be a production-ready file, with all the 
+        necessary information and configurations, and follow the best practices for 
+        the resource kind.
+       - Ports, users, users groups, etc. should be non privileged ( use non privileged
+       ports (+1024) and map them to the original port using the services.) Specify the 
+       number of the port to be use, the remapping and a a brief explanation, so  there is no
+       errors when generating the yaml files because of trying to use the default, privileged ports.
+       - Take in count that we are working on a single node kind cluster.
 
     6. **Self-Validation & Handoff**  
        - Cross-check that every `volumeMount.name` has a matching entry in
-         `volumes`/`volumeClaimTemplates`.  
-       - Ensure no read-write path is backed by a read-only volume.  
-       - Confirm Pod-level vs container-level securityContext placement.  
+         `volumes`/`volumeClaimTemplates` (if applies).  
+       - Ensure no read-write path is backed by a read-only volume (if applies).  
+       - Confirm Pod-level vs container-level securityContext placement (if applies).  
        - Provide next-step guidance (e.g. run `kubectl apply
-         --dry-run=client -o yaml` for schema validation).  
-
-    **Example Blackboard Parsing**  
-    ```
-    image: myorg/myapp:1.0
-    user: "1000"
-    dataDir: /var/lib/myapp/data
-    configFile: /etc/myapp/config.yaml
-    cacheDir: /var/cache/myapp
-    resourceKind: StatefulSet
-    replicas: 3
-    ```
-    would translate into a StatefulSet with:  
-    - PVC-backed volume at `/var/lib/myapp/data`  
-    - `emptyDir` at `/var/cache/myapp`  
-    - ConfigMap (read-only) at `/etc/myapp/config.yaml`  
-    - `fsGroup: 1000` to align permissions.
+         --dry-run=client -o yaml` for schema validation) (if applies).  
 
     <Important>
-    - During this step, yaml files has been created yet, so do not use the read_file tool.
-    - Ensure that you research about the correct resource, given in the <resource> block.
+    - During this step, yaml files has been created yet, so do not use the yaml_read tool.
+    - Ensure that you research about the correct resource, given in the <resources> block.
     - Ensure that each file contains only the elements and configurations that are relative to it.
     Never mix two resources in the same yaml file during the planification steps. Ensure that 
     each file is self-contained and clear.
+    - Ensure to use the available information about the image being used, given in the
+    <blackboard> block, such as image name, ports, users, users groups, version, etc.
+    - Remember labels cant include whitespace, so use _ or - instead of space.
+    - Your focus is to create a minimal, secure and production ready plan. Focus on the k8s 
+       implementation, and the minimal image configuration required to implement it.
+    - Take in count that we are working on a single node kind cluster.
     </Important>
 
-    The resource you must analyze is:
-    <resource>
-    {resource}
-    </resource>
+    The resources you must analyze are:
+    <resources>
+    {resources}
+    </resources>
 
     <blackboard>
     {blackboard}
@@ -117,29 +143,35 @@ per_resource_research:
     {feedback}
     </feedback>
   expected_output: >
-    A plain text document containing:
+    A json list of documents, each document containing:
+     - title
+     - namespace
+     - description
+    
+    where:
+      - title must match the same of the original given in the <resources> block.
+      - namespace must match the same of the original given in the <resources> block, unless for 
+      some reason the resource is not in the same namespace. (which will be very rare)
+      - description must be a narrative explaining the following elements, when applies:
+        - Each volume choice, access mode, securityContext linkage, plus a checklist of 
+        common pitfalls and mitigations. Include image-specific information if applies. 
+        - Security Context Rationale - why specific `runAsUser` / `fsGroup` / 
+        `readOnlyRootFilesystem` / `allowPrivilegeEscalation` / `capabilities` / 
+        `seccompProfile` / `automountServiceAccountToken` settings were chosen.  
+        - Ports Rationale - why specific ports were chosen.   (remember to prefer 
+        unprivileged ports, and map them to the original port using the services.)
+        - Proper and matching configMaps and secrets, taking in count the previous 
+        information about the image being used.
+        - Best-Practice Recommendations - actionable bullet list for operators (storage class hints, clean-up policies, monitoring hooks).  
+        - Preliminary YAML Manifest - fully indented, commented, and
+          nearly deployable (code-fenced).  
+          - MUST compile without validation errors if missing TODO values are
+            supplied.  
+          - All volume names must match their mounts. PVC when applies. 
+          - Read-only vs read-write flags explicitly shown.  
+          - Inline comments highlight why each volume exists and how it
+            addresses a specific risk.
+          - Ports definitions and bindings
 
-    1. **Resource Overview** - summary table (kind, replicas, images,
-       volume needs).  
-    2. **Volume & Permissions Analysis** - narrative explaining each
-       volume choice, access mode, securityContext linkage, plus a
-       checklist of common pitfalls and mitigations. Include image-specific 
-       information if applies. 
-    3. **Security Context Rationale** - why specific `runAsUser` /
-       `fsGroup` / `readOnlyRootFilesystem` settings were chosen.  
-    4. **Best-Practice Recommendations** - actionable bullet list for
-       operators (storage class hints, clean-up policies, monitoring
-       hooks).  
-    5. **Preliminary YAML Manifest** - fully indented, commented, and
-       nearly deployable (code-fenced).  
-       - MUST compile without validation errors if missing TODO values are
-         supplied.  
-       - All volume names must match their mounts.  
-       - Read-only vs read-write flags explicitly shown.  
-       - Inline comments highlight why each volume exists and how it
-         addresses a specific risk.
-
-    The output NEEDS to be the plain text, not a markdown document, and not a reference
-    tp a previous file. The last answer is the report integrally.
   max_retries: 3
   agent: devops_researcher

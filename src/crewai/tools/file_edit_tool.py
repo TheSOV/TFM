@@ -12,8 +12,9 @@ import os
 import difflib
 from typing import List, Optional, Dict, Any, Type, Union, Literal
 from pathlib import Path
+from textwrap import dedent
 
-from pydantic import BaseModel, Field, PrivateAttr, field_validator
+from pydantic import BaseModel, Field, PrivateAttr, field_validator, ValidationInfo
 from crewai.tools import BaseTool
 
 import massedit  # Library for mass editing text files
@@ -74,15 +75,16 @@ class LineOperation(BaseModel):
     )
     
     @field_validator('content')
-    def validate_content_based_on_operation(cls, v, values):
-        operation = values.get('operation')
-        if operation in ['add', 'replace']:
-            if v is None:
-                raise ValueError(f"Content is required for '{operation}' operation")
-            if operation == 'add' and not v.strip():
-                raise ValueError("Content cannot be empty for 'add' operation")
-        elif operation == 'delete' and v is not None:
-            raise ValueError("Content must be None for 'delete' operation")
+    def validate_content_based_on_operation(cls, v: Optional[str], info: 'ValidationInfo'):
+        if 'operation' in info.data:
+            operation = info.data['operation']
+            if operation in ['add', 'replace']:
+                if v is None:
+                    raise ValueError(f"Content is required for '{operation}' operation")
+                if operation == 'add' and not v.strip():
+                    raise ValueError("Content cannot be empty for 'add' operation")
+            elif operation == 'delete' and v is not None:
+                raise ValueError("Content must be None for 'delete' operation")
         return v
 
 
@@ -94,18 +96,14 @@ class FileEditRequest(BaseModel):
         file_path (str): Path to the file to edit, relative to base directory.
         expressions (Optional[List[str]]): List of Python expressions to modify the file content.
             Each expression must reference the 'line' variable.
-        content (Optional[str]): If provided, completely replaces the file content.
-            This takes precedence over expressions and line_operations.
         line_operations (Optional[List[LineOperation]]): Line-specific operations.
-            Takes precedence over expressions, but not over content.
+            Takes precedence over expressions.
         comment (str): Comment for version control commit message.
             This field is mandatory.
     """
     file_path: str = Field(..., description="Path to the file to edit, relative to base directory")
     expressions: Optional[List[str]] = Field(None, 
         description="List of Python expressions to modify each line. Use 'line' variable to reference current line.")
-    content: Optional[str] = Field(None, 
-        description="If provided, completely replaces the file content instead of using expressions")
     line_operations: Optional[List[LineOperation]] = Field(None,
         description="List of line-specific operations to perform on the file")
     comment: str = Field(
@@ -120,8 +118,12 @@ class FileReadRequest(BaseModel):
     
     Attributes:
         file_path (str): Path to the file to read, relative to base directory.
+        start_line (Optional[int]): Optional line number to start reading from (inclusive).
+        end_line (Optional[int]): Optional line number to stop reading at (inclusive).
     """
     file_path: str = Field(..., description="Path to the file to read, relative to base directory")
+    start_line: Optional[int] = Field(None, description="Optional line number to start reading from (inclusive). Defaults to the beginning of the file.")
+    end_line: Optional[int] = Field(None, description="Optional line number to stop reading at (inclusive). Defaults to the end of the file.")
 
 
 class FileCreateTool(BaseTool):
@@ -167,11 +169,15 @@ class FileCreateTool(BaseTool):
     )
     args_schema: Type[BaseModel] = FileCreateRequest
     _base_dir: str = PrivateAttr()
-    _versioning = PrivateAttr(default=None)
     
-    def __init__(self, base_dir: Union[str, Path], versioning=None, enable_versioning: bool = True, **kwargs) -> None:
+    def __init__(
+        self, 
+        base_dir: Union[str, Path], 
+        versioning: None, 
+        enable_versioning: bool = False ,
+        **kwargs) -> None:
         """
-        Initialize the FileCreateTool.
+        Initialize the FileCreateTool.  
         
         Args:
             base_dir (str | Path): The base directory for all file operations.
@@ -182,7 +188,7 @@ class FileCreateTool(BaseTool):
         self._enable_versioning = enable_versioning
         self._versioning = versioning if enable_versioning else None
     
-    def _run(self, file_path: str, content: str, comment: str) -> Dict[str, Any]:
+    def _run(self, file_path: str, content: str, comment: str, enable_config_validator: bool = True) -> Dict[str, Any]:
         """
         Create a new file with the specified content and add it to version control.
         
@@ -230,20 +236,16 @@ class FileCreateTool(BaseTool):
                 except Exception as ve:
                     _logger.error(f"Failed to version created file {file_path}: {str(ve)}")
                     versioning_error_message = f"File written to disk, but versioning failed: {str(ve)}"
-            
+
             # Prepare result for file creation
             result = {
-                "success": True, # File creation itself was successful
-                "file_path": file_path,
-                "details": f"File created successfully: {file_path}"
+                "success": True # File creation itself was successful
             }
             
             # Add versioning status to result
             if self._enable_versioning and self._versioning:
                 if commit_sha:
                     result["versioned"] = True
-                    result["commit_sha"] = commit_sha
-                    result["version_comment"] = comment
                 else:
                     result["versioned"] = False
                     if versioning_error_message:
@@ -272,58 +274,83 @@ class FileEditTool(BaseTool):
         versioning (Optional): FileVersioning instance for version control.
     """
     name: str = "file_edit"
-    description: str = (
-        "Modifies an existing file in three different ways:\n"
-        "1. Direct line editing: Add, replace, or delete specific lines by their line number\n"
-        "2. Pattern-based changes: Apply text patterns to each line\n"
-        "3. Full replacement: Replace all file content at once\n"
-        "\nNEVER add temp at the beginning of the file path. Directly use the file path."
-        "\nHOW TO USE THIS TOOL:\n"
-        "1. Specify which file you want to change (file_path)\n"
-        "2. Choose ONE of these methods to edit the file:\n"
-        "   - For line-by-line EDITING: provide 'line_operations' (list of operations on specific line numbers)\n"
-        "   - For pattern-based CHANGES: provide 'expressions' (list of text patterns to find and replace)\n"
-        "   - For COMPLETE replacement: provide 'content' (new text that will replace everything)\n"
-        "\nIMPORTANT:\n"
-        "- For file paths, always use forward slashes ('/') not backslashes, like 'folder/my_file.txt'\n"
-        "- For multi-line content, use '\\n' for line breaks\n"
-        "- When using JSON, ensure proper escaping of special characters:\n"
-        "  - Double quotes: \\\"\n"
-        "  - Newlines: \\n\n"
-        "  - Backslashes: \\\\\n"
-        "- IMPORTANT: Do NOT add backslashes at the end of each line in your content. This will cause issues with YAML files.\n"
-        "\nEXAMPLES FOR DIRECT LINE EDITING (EASIEST METHOD):\n"
-        "1. ADD a new line AFTER line 3 (note: content cannot be empty):\n"
-        "   {\"file_path\": \"documents/notes.txt\", \"line_operations\": [{\"line_number\": 3, \"operation\": \"add\", \"content\": \"This is a new line\"}]}\n"
-        "   To add a blank line, use a space as content: {\"content\": \" \"}\n\n"
-        "2. REPLACE line 5 with new content (replaces the entire line):\n"
-        "   {\"file_path\": \"documents/notes.txt\", \"line_operations\": [{\"line_number\": 5, \"operation\": \"replace\", \"content\": \"This is the replacement line\"}]}\n\n"
-        "3. DELETE line 7 (only line_number and operation needed):\n"
-        "   {\"file_path\": \"documents/notes.txt\", \"line_operations\": [{\"line_number\": 7, \"operation\": \"delete\"}]}\n\n"
-        "4. MULTI-LINE content example (note the \\n for newlines):\n"
-        "   {\"file_path\": \"documents/notes.txt\", \"content\": \"First line\\nSecond line\\nThird line\"}\n\n"
-        "EXAMPLES FOR PATTERN-BASED CHANGES:\n"
-        "1. REPLACE a specific word everywhere in the file:\n"
-        "   {\"file_path\": \"documents/letter.txt\", \"expressions\": [\"re.sub('old', 'new', line)\"]}\n"
-        "2. REPLACE an entire line containing specific text:\n"
-        "   {\"file_path\": \"documents/instructions.md\", \"expressions\": [\"'New content' if 'target text' in line else line\"]}\n"
-        "3. INSERT TEXT after specific text (for more complex operations):\n"
-        "   {\"file_path\": \"documents/notes.txt\", \"expressions\": [\"line.replace('target', 'target NEW TEXT')\"]}\n"
-        "\nEXAMPLES FOR COMPLETE REPLACEMENT:\n"
-        "1. Replace the entire file with multi-line content:\n"
-        "   {\"file_path\": \"documents/notes.txt\", \"content\": \"First line\\nSecond line\\nThird line\"}\n"
-        "2. Replace with YAML content (note escaped quotes):\n"
-        "   {\"file_path\": \"config.yaml\", \"content\": \"# YAML example - note NO backslashes at end of lines\\nkey: value\\nitems:\\n  - item1\\n  - item2\"}\n"
-        "\nTROUBLESHOOTING:\n"
-        "- If you see extra backslashes, ensure you're not double-escaping the content\n"
-        "- For multi-line YAML/JSON, ensure proper indentation and escaping\n"
-        "- When in doubt, use the 'content' method for complete control over the file content"
-        )
+    description: str = dedent("""\
+        A tool for making precise, line-by-line changes to existing files. You can add, replace, or delete specific lines of code or text.
+
+        **HOW TO USE:**
+        1.  **Specify the file** you want to edit using the `file_path`.
+        2.  **Provide a list of `line_operations`**, where each operation is a dictionary specifying the `line_number`, the `operation` ('add', 'replace', or 'delete'), and the `content` (for 'add' and 'replace').
+
+        **IMPORTANT NOTES:**
+        -  Use forward slashes (e.g., 'folder/file.txt') for `file_path`.
+        -  For multi-line content, use `\\n` to indicate line breaks.
+        -  You can perform multiple operations in a single call.
+
+        **EXAMPLES:**
+
+        **1. Add a new line:**
+           ```json
+           {
+             "file_path": "src/main.py",
+             "line_operations": [
+               {"line_number": 10, "operation": "add", "content": "# This is a new comment"}
+             ]
+           }
+           ```
+
+        **2. Replace a line:**
+           ```json
+           {
+             "file_path": "config.yaml",
+             "line_operations": [
+               {"line_number": 5, "operation": "replace", "content": "new_setting: true"}
+             ]
+           }
+           ```
+
+        **3. Delete a line:**
+           ```json
+           {
+             "file_path": "README.md",
+             "line_operations": [
+               {"line_number": 2, "operation": "delete"}
+             ]
+           }
+           ```
+
+        **4. Multiple operations at once:**
+           ```json
+           {
+             "file_path": "data.csv",
+             "line_operations": [
+               {"line_number": 1, "operation": "delete"},
+               {"line_number": 3, "operation": "replace", "content": "new,data,row"},
+               {"line_number": 5, "operation": "add", "content": "another,new,row"}
+             ]
+           }
+           ```
+
+        **ADVANCED USAGE: Pattern-Based Changes with Expressions**
+        For more complex edits, you can use the `expressions` parameter to apply a Python expression to each line of the file. This is useful for replacing text that appears on multiple lines.
+
+        **Example: Replace a word across the entire file:**
+           ```json
+           {
+             "file_path": "documents/letter.txt",
+             "expressions": ["line.replace('old_word', 'new_word')"]
+           }
+           ```
+    """)
     args_schema: Type[BaseModel] = FileEditRequest
     _base_dir: str = PrivateAttr()
     _versioning = PrivateAttr(default=None)
     
-    def __init__(self, base_dir: Union[str, Path], versioning=None, enable_versioning: bool = True, **kwargs) -> None:
+    def __init__(
+        self, 
+        base_dir: Union[str, Path], 
+        versioning=None,
+        enable_versioning: bool = True,
+        **kwargs) -> None:
         """
         Initialize the FileEditTool.
         
@@ -341,18 +368,16 @@ class FileEditTool(BaseTool):
         file_path: str, 
         comment: str,
         expressions: Optional[List[str]] = None, 
-        content: Optional[str] = None,
         line_operations: Optional[List[Dict[str, Any]]] = None
     ) -> Dict[str, Any]:
         """
-        Edit an existing file using one of three methods: expressions, content replacement, or line operations.
+        Edit an existing file using one of two methods: expressions or line operations.
         Then add the changes to version control.
         
         Args:
             file_path (str): Path to the file to edit, relative to base_dir.
                 Use forward slashes ('/') for OS-agnostic paths.
             expressions (Optional[List[str]]): List of Python expressions to modify the file content.
-            content (Optional[str]): If provided, completely replaces the file content.
             line_operations (Optional[List[Dict[str, Any]]]): List of line-specific operations to perform.
             comment (str): Comment for version control commit message.
             
@@ -380,66 +405,10 @@ class FileEditTool(BaseTool):
             original_content = full_path.read_text(encoding="utf-8")
             original_lines = original_content.splitlines()
             
-            # If content is provided, replace the entire file (highest precedence)
-            if content is not None:
-                full_path.write_text(content, encoding="utf-8")
-                
-                # Generate unified diff
-                diff = list(difflib.unified_diff(
-                    original_content.splitlines(keepends=True),
-                    content.splitlines(keepends=True),
-                    fromfile='original',
-                    tofile='modified',
-                    lineterm=''
-                ))
-                
-                # Add to version control if versioning is available
-                commit_sha = None
-                versioning_error_message = None
-                if self._enable_versioning and self._versioning:
-                    try:
-                        # Add the file to version control
-                        self._versioning.add_file(file_path)
-                        
-                        # Commit the changes
-                        commit_sha = self._versioning.commit_changes(comment)
-                        _logger.info(f"File {file_path} content replaced and committed to version control with commit {commit_sha}")
-                    except Exception as ve:
-                        _logger.error(f"Failed to version edited file {file_path} (content replacement): {str(ve)}")
-                        versioning_error_message = f"File content replaced, but versioning failed: {str(ve)}"
-                
-                # Prepare result
-                result = {
-                    "success": True,
-                    "message": f"File {file_path} content replaced successfully.",
-                    "details": {
-                        "path": str(full_path),
-                        "diff": "\n".join(diff) if diff else "No changes detected."
-                    }
-                }
-                
-                # Add versioning status to result
-                if self._enable_versioning and self._versioning:
-                    if commit_sha:
-                        result["versioned"] = True
-                        result["commit_sha"] = commit_sha
-                        result["version_comment"] = comment
-                        # For backward compatibility with potential consumers of details.versioned
-                        result["details"]["versioned"] = True 
-                        result["details"]["commit_sha"] = commit_sha
-                        result["details"]["version_comment"] = comment
-                    else:
-                        result["versioned"] = False
-                        if versioning_error_message:
-                            result["versioning_error"] = versioning_error_message
-                        else:
-                            result["versioning_error"] = "Versioning attempted but commit_sha not obtained, reason unknown."
-                        result["details"]["versioned"] = False # For backward compatibility
-                
-                return result
+
             
-            # If line operations are provided, apply them directly (second precedence)
-            elif line_operations is not None and len(line_operations) > 0:
+            # If line operations are provided, apply them directly
+            if line_operations is not None and len(line_operations) > 0:
                 # Convert to LineOperation objects to validate operations
                 validated_ops = []
                 for op in line_operations:
@@ -542,7 +511,6 @@ class FileEditTool(BaseTool):
                     "success": True, # File edit itself was successful
                     "message": f"File {file_path} edited successfully using provided operations/expressions.",
                     "details": {
-                        "path": str(full_path),
                         "diff": "\n".join(diff) if diff else "No changes detected."
                     }
                 }
@@ -608,7 +576,6 @@ class FileEditTool(BaseTool):
                     "success": True,
                     "message": f"File {file_path} edited successfully using expressions.",
                     "details": {
-                        "path": str(full_path),
                         "changes": changes,
                         "expressions": expressions,
                         "diff": '\n'.join(diff)
@@ -633,8 +600,7 @@ class FileEditTool(BaseTool):
             else:
                 return {
                     "success": False,
-                    "error": "No edit operation specified. Provide 'line_operations', 'expressions', or 'content'.",
-                    "details": {"path": str(full_path)}
+                    "error": "No edit operation specified. Provide 'line_operations' or 'expressions'.",
                 }
             
         except Exception as e:
@@ -654,21 +620,31 @@ class FileReadTool(BaseTool):
         base_dir (str | Path): The base directory for all file operations.
     """
     name: str = "file_read"
-    description: str = (
-        "Lets you see what's inside a file without changing anything. The file must exist for this tool to work. "
-        "\n\nHOW TO USE THIS TOOL:\n"
-        "1. Just tell the tool which file you want to read (file_path)\n"
-        "2. The tool will show you all the text inside that file\n"
-        "\nIMPORTANT: For file paths, always use forward slashes ('/') not backslashes, like 'folder/my_file.txt'\n"
-        "\n\nEXAMPLES:\n"
-        "1. Read a text file:\n"
-        "   {\"file_path\": \"documents/notes.txt\"}\n"
-        "\n2. Read a Python script:\n"
-        "   {\"file_path\": \"scripts/main.py\"}\n"
-        "\n3. Read a configuration file:\n"
-        "   {\"file_path\": \"config/settings.json\"}\n"
-        "\nAfter reading a file, you'll get back the complete text content, which you can then analyze or use with other tools."
-    )
+    description: str = dedent("""
+        A tool that can be used to read a file's content, optionally from a specific start line to an end line.
+
+        **HOW TO USE:**
+        1.  **Specify the file** you want to read using the `file_path`.
+        2.  **Optionally specify `start_line` and `end_line`** to read only a specific range of lines. If omitted, the entire file is read.
+
+        **EXAMPLES:**
+
+        **1. Read the entire file:**
+           ```json
+           {
+             "file_path": "src/main.py"
+           }
+           ```
+
+        **2. Read a specific range of lines (e.g., lines 10 to 20):**
+           ```json
+           {
+             "file_path": "src/main.py",
+             "start_line": 10,
+             "end_line": 20
+           }
+           ```
+    """)
     args_schema: Type[BaseModel] = FileReadRequest
     _base_dir: Path = PrivateAttr()
     
@@ -682,47 +658,66 @@ class FileReadTool(BaseTool):
         super().__init__(**kwargs)
         self._base_dir = Path(base_dir)
     
-    def _run(self, file_path: str) -> Dict[str, Any]:
+    def _run(
+        self, 
+        file_path: str, 
+        start_line: Optional[int] = None, 
+        end_line: Optional[int] = None
+    ) -> Dict[str, Any]:
         """
-        Read the content of a file.
-        
+        Read the content of a file. The tool will return the content with line numbers.
+
         Args:
             file_path (str): Path to the file to read, relative to base_dir.
                 Use forward slashes ('/') for OS-agnostic paths.
-            
+
         Returns:
             Dict[str, Any]: Result of the operation, including success status, file content, and details.
         """
         try:
             # Standardize path handling
-            relative_path = os.path.normpath(file_path).replace('\\', '/').lstrip('/')
+            relative_path = os.path.normpath(file_path).replace("\\", "/").lstrip("/")
             full_path = self._base_dir / relative_path
             _logger.info(f"Attempting to read file at path: {full_path}")
-            
+
             # Check if file exists
             if not full_path.exists():
                 return {
                     "success": False,
                     "error": f"File {file_path} does not exist.",
-                    "details": {"path": str(full_path)}
                 }
-            
+
             # Read file content
-            content = full_path.read_text(encoding="utf-8")
+            lines = full_path.read_text(encoding="utf-8").splitlines()
+
+            # Slice lines if start_line or end_line are specified
+            # Note: Line numbers are 1-based, list indices are 0-based
+            start_index = (start_line - 1) if start_line else 0
+            end_index = end_line if end_line else len(lines)
+
+            if start_index < 0 or start_index >= len(lines):
+                return {"success": False, "error": f"start_line {start_line} is out of bounds for file {file_path} with {len(lines)} lines."}
+            if end_index > len(lines):
+                _logger.warning(f"end_line {end_line} is out of bounds for file {file_path}, reading until the end of the file.")
+                end_index = len(lines)
+
+            lines_to_process = lines[start_index:end_index]
             
+            # Add line numbers to the selected lines
+            content_with_lines = "\n".join(
+                f"{i + 1 + start_index:05d}: {line}" for i, line in enumerate(lines_to_process)
+            )
+
             return {
                 "success": True,
-                "content": content,
-                "details": {
-                    "path": str(full_path),
-                    "size": full_path.stat().st_size
-                }
+                "content": content_with_lines,
+                "details": {"number_of_lines": len(lines)},
             }
-            
+
         except Exception as e:
             _logger.error(f"Error reading file {file_path}: {str(e)}")
             return {
                 "success": False,
                 "error": f"Error reading file: {str(e)}",
-                "details": {"exception": str(e)}
+                "details": {"exception": str(e)},
             }

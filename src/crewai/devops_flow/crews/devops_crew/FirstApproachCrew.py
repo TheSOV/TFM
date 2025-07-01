@@ -11,22 +11,15 @@ class FirstApproachCrew(BaseCrew):
     tasks_config = 'tasks/first_approach_tasks.yaml'
 
     @task
-    def think_solution(self) -> Task:
-        return Task(
-            config=self.tasks_config['think_solution'], # type: ignore[index]
-            tools=[
-                services.get(f"file_read_{self.path}"),
-                services.get(f"file_version_history_{self.path}"),
-                services.get(f"file_version_diff_{self.path}"),
-                services.get(f"config_validator_{self.path}"),
-                ],
-            guardrails=[validate_min_output_length_for_long_text]
-        )
-
-    @task
     def write_solution(self) -> Task:
         return Task(
             config=self.tasks_config['write_solution'], # type: ignore[index]
+        )
+
+    @task
+    def verify_solution(self) -> Task:
+        return Task(
+            config=self.tasks_config['verify_solution'], # type: ignore[index]
         )
 
     @task

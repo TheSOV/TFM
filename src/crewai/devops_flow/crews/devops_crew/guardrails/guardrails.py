@@ -6,7 +6,7 @@ from os import getenv
 
 def validate_min_output_length_for_long_text(result: TaskOutput) -> Tuple[bool, Any]:
     if len(result.raw) < 1000:
-        return (False, f"Guardrail Message: Output is too short. You possibly did provide the report as answer, and instead used a failed tool call or a reference to the final report. Your final answer was: {result.raw} and it should be a report that complies with the task")
+        return (False, f"Guardrail Message: Output is too short. You possibly did provide the report as answer, and instead used a failed tool call or a reference to the final report. Your final answer was: '{result.raw}', and it should be a report that complies with the task")
     return (True, result)
 
 # ## Validate create k8s config

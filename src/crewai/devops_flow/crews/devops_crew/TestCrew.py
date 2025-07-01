@@ -14,14 +14,14 @@ class TestCrew(BaseCrew):
     def popeye_scan(self) -> Task:
         return Task(
             config=self.tasks_config['popeye_scan'], # type: ignore[index]
-            guardrails=[validate_min_output_length_for_long_text]
+            guardrail=validate_min_output_length_for_long_text
         )
 
     @task
     def kubectl_status_check(self) -> Task:
         return Task(
             config=self.tasks_config['kubectl_status_check'], # type: ignore[index]
-            guardrails=[validate_min_output_length_for_long_text]
+            guardrail=validate_min_output_length_for_long_text
         )
 
     @task
@@ -36,14 +36,7 @@ class TestCrew(BaseCrew):
         return Task(
             config=self.tasks_config['classify_cluster_issues'], # type: ignore[index]
             output_json=Issues
-        )
-    
-    @task
-    def cluster_analyze_issues(self) -> Task:
-        return Task(
-            config=self.tasks_config['cluster_analyze_issues'], # type: ignore[index]
-            output_json=Issues
-        )
+        )    
     
     @task
     def log_cluster_issues(self) -> Task:

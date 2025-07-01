@@ -4,6 +4,7 @@ API routes for the DevopsFlow web server.
 This module contains all the route handlers for the API endpoints.
 """
 
+import traceback
 import threading
 from typing import Dict, Any
 
@@ -48,8 +49,19 @@ def init_devops_flow() -> Dict[str, Any]:
         state.devops_flow = DevopsFlow(user_request=prompt)
 
         def run_devops_flow():
-            # The kickoff method starts the main process
-            asyncio.run(state.devops_flow.kickoff())
+            try:
+                # The kickoff method starts the main process
+                print("DevOps flow thread started.")
+                asyncio.run(state.devops_flow.kickoff(), debug=True)
+                print("DevOps flow thread finished successfully.")
+            except asyncio.CancelledError as e:
+                print("TOP-LEVEL CANCEL:", e)
+                traceback.print_exc()
+            except BaseException as e:
+                print("TOP-LEVEL CRASH:", e)
+                traceback.print_exc()
+            finally:
+                print("DevopsFlow thread is terminating.")
 
         
         state.devops_flow_thread = threading.Thread(target=run_devops_flow)

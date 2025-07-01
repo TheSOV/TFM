@@ -26,7 +26,7 @@ preliminary_structure:
   expected_output: >
     Narrative prose or structured Markdown—**no YAML/JSON/code blocks**—listing
     for *each* manifest:  
-    • file path  • namespace   • description.  
+    • title  • namespace   • description.  
     Use concrete, non-generic wording; omit tags, registries, versions, and
     implementation minutiae. Another senior engineer should be able to model the
     cluster without further clarification.

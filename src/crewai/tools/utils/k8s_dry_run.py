@@ -76,6 +76,11 @@ def k8s_dry_run(
             text=True,
             check=False  # We'll handle non-zero exit codes
         )
+
+        # Extract base directories from the file_path
+        path_parts = file_path.parts
+        base_dir_1 = path_parts[0] if len(path_parts) > 0 else None
+        base_dir_2 = path_parts[1] if len(path_parts) > 1 else None
         
         # Combine stdout and stderr for the result
         full_output = []
@@ -86,7 +91,7 @@ def k8s_dry_run(
             # full_output.append("\n=== STDERR ===")
             full_output.append(process.stderr)
             
-        output_text = " ".join(full_output)
+        output_text = " ".join(full_output).replace(base_dir_1, "").replace(base_dir_2, "").replace("\\\\\\\\", "")
         
         if process.returncode == 0:
             # For successful dry-run, include the output in the result

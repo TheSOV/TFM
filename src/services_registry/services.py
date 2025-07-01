@@ -19,16 +19,19 @@ from src.crewai.tools.web_browser_tool import WebBrowserTool
 from src.version_control.versioning_utils import FileVersioning
 from src.crewai.devops_flow.blackboard.Blackboard import Blackboard
 
+from src.crewai.tools.yaml_tools import YAMLReadTool, YAMLEditTool
+
 from crewai_tools import BraveSearchTool
 
 
 _registry: Dict[str, Tuple[Callable[[], Any], bool]] = {}
 _cache:    Dict[str, Any] = {}
 
-def init_services_with_path(path: str):
+def init_services_with_path(path: str, filename: str):
     # Use a sensible default 'temp' instead of `path` to avoid creating incorrect paths like 'project/project'
     temp_files_dir = os.getenv("TEMP_FILES_DIR", "temp")
     full_path = os.path.join(temp_files_dir, path)
+    file_path = os.path.join(full_path, filename)
 
     # Register kubectl tool with configuration from environment
     def get_namespace_set(env_var: str) -> Optional[set]:
@@ -47,53 +50,63 @@ def init_services_with_path(path: str):
         base_dir=full_path
     ), singleton=False)
 
-    # Register FileVersioning as a singleton
-    register(f"file_versioning_{path}", 
-    lambda: FileVersioning(
-        repo_path=full_path
-    ), singleton=True)
-    
-    register(f"file_create_{path}", 
-    lambda: FileCreateTool(
-        base_dir=full_path,
-        versioning=get(f"file_versioning_{path}"),
-        enable_versioning=True
-    ), singleton=False)
-
-    register(f"file_edit_{path}", 
-    lambda: FileEditTool(
-        base_dir=full_path,
-        versioning=get(f"file_versioning_{path}"),
-        enable_versioning=True
-    ), singleton=False)
-
-    register(f"file_read_{path}", 
-    lambda: FileReadTool(
-        base_dir=full_path
-    ), singleton=False)
-
-    register(f"file_version_history_{path}", 
-    lambda: FileVersionHistoryTool(
-        base_dir=full_path,
-        versioning=get(f"file_versioning_{path}")
-    ), singleton=False)
-
-    register(f"file_version_diff_{path}", 
-    lambda: FileVersionDiffTool(
-        base_dir=full_path,
-        versioning=get(f"file_versioning_{path}")
-    ), singleton=False)
-
-    register(f"file_version_restore_{path}", 
-    lambda: FileVersionRestoreTool(
-        base_dir=full_path,
-        versioning=get(f"file_versioning_{path}")
-    ), singleton=False)
+    # # Register FileVersioning as a singleton
+    # register(f"file_versioning_{path}", 
+    # lambda: FileVersioning(
+    #     repo_path=full_path
+    # ), singleton=True)
 
     register(f"config_validator_{path}", 
     lambda: ConfigValidatorTool(
-        base_dir=full_path
+        file_path=file_path
     ), singleton=False)
+
+    register(f"yaml_read_{path}", 
+    lambda: YAMLReadTool(
+        file_path=file_path
+    ), singleton=False)
+    
+    register(f"yaml_edit_{path}", 
+    lambda: YAMLEditTool(
+        file_path=file_path
+    ), singleton=False)
+    
+    # register(f"file_create_{path}", 
+    # lambda: FileCreateTool(
+    #     base_dir=full_path,
+    #     versioning=get(f"file_versioning_{path}"),
+    #     enable_versioning=True,
+    # ), singleton=False)
+
+    # register(f"file_edit_{path}", 
+    # lambda: FileEditTool(
+    #     base_dir=full_path,
+    #     versioning=get(f"file_versioning_{path}"),
+    #     enable_versioning=True
+    # ), singleton=False)
+
+    # register(f"file_read_{path}", 
+    # lambda: FileReadTool(
+    #     base_dir=full_path
+    # ), singleton=False)
+
+    # register(f"file_version_history_{path}", 
+    # lambda: FileVersionHistoryTool(
+    #     base_dir=full_path,
+    #     versioning=get(f"file_versioning_{path}")
+    # ), singleton=False)
+
+    # register(f"file_version_diff_{path}", 
+    # lambda: FileVersionDiffTool(
+    #     base_dir=full_path,
+    #     versioning=get(f"file_versioning_{path}")
+    # ), singleton=False)
+
+    # register(f"file_version_restore_{path}", 
+    # lambda: FileVersionRestoreTool(
+    #     base_dir=full_path,
+    #     versioning=get(f"file_versioning_{path}")
+    # ), singleton=False)
     
 
 def init_services():

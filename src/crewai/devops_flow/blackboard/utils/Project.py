@@ -22,4 +22,3 @@ class Project(BaseModel):
         default=None,
         description="The advanced plan of the project"
     )
-    
