@@ -69,6 +69,8 @@ class DevopsFlow:
 
         # Get the kill signal event from the service registry
         self.kill_signal: threading.Event = services.get("kill_signal_event")
+        self.user_input_wait_event: threading.Event = services.get("user_input_wait_event")
+        self.user_input_received_event: threading.Event = services.get("user_input_received_event")
         
         # Test log to verify logging is working
         logger.info(f"DevopsFlow initialized with user_request: {user_request[:50]}...")
@@ -79,6 +81,49 @@ class DevopsFlow:
         self.cluster_manager = None
 
         services.init_services_with_path(self.path, file_path)
+
+    async def _wait_for_user_input(self, step_name: str) -> Optional[str]:
+        """
+        Pauses the flow if in 'assisted' mode, waiting for user feedback.
+
+        Args:
+            step_name: The name of the step that is waiting for input.
+
+        Returns:
+            The user's feedback message if provided, otherwise None.
+        """
+        if self.blackboard.interaction.mode == "automated":
+            return None
+
+        logger.info(f"Pausing for user input before step: {step_name}")
+        self.blackboard.interaction.status = f"waiting_for_input:{step_name}"
+        self.user_input_wait_event.set()
+        self.user_input_received_event.clear()
+
+        try:
+            while not self.user_input_received_event.is_set():
+                if self.kill_signal.is_set():
+                    logger.info("Kill signal detected while waiting for user input.")
+                    self.blackboard.interaction.status = "running"
+                    self.user_input_wait_event.clear()
+                    return None
+                await asyncio.sleep(1)  # Non-blocking wait
+
+            # Immediately update state to prevent race conditions
+            self.blackboard.interaction.is_waiting_for_input = False
+            self.blackboard.interaction.step_name = ""
+            self.blackboard.interaction.status = "running"
+
+            user_feedback = self.blackboard.interaction.user_feedback
+            self.blackboard.interaction.user_feedback = ""  # Clear feedback after reading
+
+            self.user_input_received_event.clear()
+
+            logger.info("User input received, resuming.")
+            return user_feedback
+        finally:
+            # Ensure the received event is always cleared to prevent stale state
+            self.user_input_received_event.clear()
 
     # TODO move this to parent
     def clear_temp_files(self):
@@ -215,12 +260,12 @@ class DevopsFlow:
 
         advanced_crew = GatherInformationCrew(path=self.path).crew()
 
-        advanced_results = await advanced_crew.kickoff_async(
-            inputs={
+        inputs = {
                 "blackboard": self.blackboard.export_blackboard(),
                 "feedback": feedback,
             }
-        )
+        logger.info(f"Kicking off 'initial_research' crew with feedback: '{feedback}'")
+        advanced_results = await advanced_crew.kickoff_async(inputs=inputs)
 
         self.blackboard.project.advanced_plan = advanced_results.raw   
 
@@ -286,34 +331,31 @@ class DevopsFlow:
         new_images = []
         for image_data in images:
             new_images.append(Image(**image_data))
-
         self.blackboard.images = new_images
 
 
     @retry_with_feedback(max_attempts=3, delay=10)
     async def first_approach(self, manifests: list[Manifest], feedback: Optional[str] = None):
-        if self.kill_signal.is_set():
-            logger.info(f"Kill signal detected. Aborting first_approach for manifest: {manifest.title}")
-            # For async methods, ensure we return something awaitable if necessary, or handle cancellation.
-            # Here, simple return should be fine as the caller (first_approach_flow) will handle it.
-            return None # Or appropriate default/marker for cancellation
         """
         Create the first version of the manifests
         """
+        if self.kill_signal.is_set():
+            logger.info("Kill signal detected. Aborting first_approach.")
+            return None
+
         logger.info("First approach")
        
-        manifests = [manifest.model_dump() for manifest in manifests]
+        manifests_dump = [manifest.model_dump() for manifest in manifests]
 
-        results = await FirstApproachCrew(path=self.path).crew().kickoff_async(
-            inputs={
-                "manifests": manifests,
+        inputs = {
+                "manifests": manifests_dump,
                 "blackboard": self.blackboard.export_blackboard(show_advanced_plan=False),
                 "feedback": feedback,
             }
-        )
+        logger.info(f"Kicking off 'first_approach' crew with feedback: '{feedback}'")
+        results = await FirstApproachCrew(path=self.path).crew().kickoff_async(inputs=inputs)
 
         temp_dir = os.getenv("TEMP_FILES_DIR", "temp")
-        # Normalize path separators and handle leading slashes using the consistent pattern
         relative_path = os.path.normpath(self.filename)
         abs_file_path = os.path.abspath(os.path.join(temp_dir, self.path, relative_path))
         
@@ -341,40 +383,6 @@ class DevopsFlow:
         )
 
         self.blackboard.manifests = [Manifest(**manifest) for manifest in result.json_dict['manifests']]
-
-        # per_resource_research_crews = []
-        
-        # for manifest in self.blackboard.manifests:
-        #     crew = PerResourceResearchCrew(path=self.path).crew()
-        #     per_resource_research_crews.append(
-        #         crew.kickoff_async(
-        #             inputs={
-        #                 "blackboard": self.blackboard.export_blackboard(),
-        #                 "feedback": feedback,
-        #                 "resource": manifest.model_dump(),
-        #             }
-        #         )
-        #     )
-
-        # # Wait for all crews to complete and get their results
-        # results = await asyncio.gather(*per_resource_research_crews)
-       
-        # # Pair results with manifests by order and update descriptions
-        # if len(results) != len(self.blackboard.manifests):
-        #     logger.warning(f"Mismatch in number of results ({len(results)}) and manifests ({len(self.blackboard.manifests)})")
-            
-        # # Update each manifest's description with the corresponding result
-        # for i, (result, manifest) in enumerate(zip(results, self.blackboard.manifests)):
-        #     if result is None:
-        #         logger.warning(f"Skipping None result at index {i}")
-        #         continue
-                
-        #     try:
-        #         manifest.description = result.raw
-        #         logger.info(f"Updated description for manifest: {manifest.title}")
-        #     except Exception as e:
-        #         logger.error(f"Failed to update manifest at index {i} (file: {manifest.title}): {str(e)}")
-
 
     def _ensure_namespaces_exist(self):
         """
@@ -560,21 +568,199 @@ class DevopsFlow:
     ############################################
 
     async def initial_research_flow(self):
-        logger.info("Initial research flow")
-        await self.initial_research()
+        """
+        Execute the initial research flow with approval/rejection feedback loop.
+        
+        This flow will:
+        1. Perform initial research
+        2. Present results to user
+        3. Allow user to approve or reject with feedback
+        4. Retry with feedback if rejected
+        5. Continue when approved or max retries reached
+        """
+        if self.kill_signal.is_set():
+            logger.info("Kill signal detected. Aborting initial_research_flow.")
+            return
+            
+        logger.info("Starting initial research flow")
+        attempt_count = 0
+        
+        while True:
+            attempt_count += 1
+            logger.info(f"Starting initial research attempt {attempt_count}")
+            
+            # Perform initial research with any previous feedback
+            await self.initial_research(feedback=feedback if 'feedback' in locals() else None)
+            
+            # Present results and wait for user approval
+            feedback = await self._wait_for_user_input("initial_research_review")
+            logger.info(f"Received feedback for initial research: {feedback}")
+            
+            # Check if user approved or provided feedback for retry
+            if feedback and feedback.lower().strip() == 'approve':
+                logger.info("Initial research approved by user")
+                break
+                
+            logger.info("User requested changes, retrying initial research with feedback")
+            
+        logger.info("Initial research flow completed")
 
+
+    async def define_project_structure_flow(self):
+        """
+        Execute the project structure definition flow with approval/rejection feedback loop.
+        
+        This flow will:
+        1. Define the initial project structure
+        2. Present results to user
+        3. Allow user to approve or reject with feedback
+        4. Retry with feedback if rejected
+        5. Continue when approved or max retries reached
+        """
+        self.blackboard.phase = "Defining Project Structure"
+        logger.info("Starting project structure definition flow...")
+        
+        attempt_count = 0
+        feedback = None
+        
+        while True:
+            attempt_count += 1
+            logger.info(f"Starting project structure definition attempt {attempt_count}...")
+            
+            # Save current state in case we need to retry
+            original_manifests = self.blackboard.manifests.copy()
+            
+            try:
+                # Perform project structure definition with any previous feedback
+                await self.define_project_structure(feedback=feedback)
+                
+                # Present results and wait for user approval
+                feedback = await self._wait_for_user_input("project_structure_review")
+                logger.info(f"Received feedback for project structure: {feedback}")
+                
+                # Check if user approved or provided feedback for retry
+                if feedback and feedback.lower().strip() == 'approve':
+                    logger.info("Project structure approved by user")
+                    break
+                    
+                logger.info("User requested changes, retrying project structure definition with feedback")
+                
+            except Exception as e:
+                logger.error(f"Error during project structure definition: {str(e)}")
+                # Restore original manifests on error
+                self.blackboard.manifests = original_manifests
+                logger.info("Restored original manifests after error")
+                await asyncio.sleep(1)  # Small delay before retry
+            
+        logger.info("Project structure definition flow completed")
+
+    async def get_images_flow(self):
+        """
+        Execute the image retrieval flow with approval/rejection feedback loop.
+        
+        This flow will:
+        1. Retrieve image information
+        2. Present results to user
+        3. Allow user to approve or reject with feedback
+        4. Retry with feedback if rejected
+        5. Continue when approved or max retries reached
+        """
+        self.blackboard.phase = "Retrieving Image Information"
+        logger.info("Starting image retrieval flow...")
+        
+        attempt_count = 0
+        feedback = None
+        
+        while True:
+            attempt_count += 1
+            logger.info(f"Starting image retrieval attempt {attempt_count}...")
+            
+            # Save current state in case we need to retry
+            original_images = self.blackboard.images.copy()
+            
+            try:
+                # Perform image retrieval with any previous feedback
+                await self.get_images(feedback=feedback)
+                
+                # Present results and wait for user approval
+                feedback = await self._wait_for_user_input("image_retrieval_review")
+                logger.info(f"Received feedback for image retrieval: {feedback}")
+                
+                # Check if user approved or provided feedback for retry
+                if feedback and feedback.lower().strip() == 'approve':
+                    logger.info("Image retrieval approved by user")
+                    break
+                    
+                logger.info("User requested changes, retrying image retrieval with feedback")
+                
+            except Exception as e:
+                logger.error(f"Error during image retrieval: {str(e)}")
+                # Restore original images on error
+                self.blackboard.images = original_images
+                logger.info("Restored original images after error")
+                await asyncio.sleep(1)  # Small delay before retry
+            
+        logger.info("Image retrieval flow completed")
 
     async def second_research_flow(self):
         self.blackboard.phase = "Defining Project Structure and Getting Images"
         
-        project_structure_flow = self.define_project_structure()
-        get_images_flow = self.get_images()
-
-        await asyncio.gather(project_structure_flow, get_images_flow)
+        # Run both flows in parallel
+        await self.define_project_structure_flow()
+        
+        await self.get_images_flow()
 
     async def per_resource_research_flow(self):
+        """
+        Execute the per-resource research flow with approval/rejection feedback loop.
+        
+        This flow will:
+        1. Perform research for all resources at once
+        2. Present results to user
+        3. Allow user to approve or reject with feedback
+        4. Retry with feedback if rejected
+        5. Continue when approved or max retries reached
+        """
+        if self.kill_signal.is_set():
+            logger.info("Kill signal detected. Aborting per_resource_research_flow.")
+            return
+            
         self.blackboard.phase = "Per Resource Research"
-        await self.per_resource_research()
+        logger.info("Starting per-resource research flow")
+        
+        attempt_count = 0
+        feedback = None
+        
+        while True:
+            attempt_count += 1
+            # Store the current state of manifests to revert if needed
+            original_manifests = self.blackboard.manifests.copy()
+            
+            try:
+                logger.info(f"Starting per-resource research (attempt {attempt_count})")
+                
+                # Perform research for all resources with any previous feedback
+                await self.per_resource_research(feedback=feedback)
+                
+                # Present results and wait for user approval
+                feedback = await self._wait_for_user_input("per_resource_research_review")
+                logger.info(f"Received feedback for per-resource research: {feedback}")
+                
+                # Check if user approved or provided feedback for retry
+                if feedback and feedback.lower().strip() == 'approve':
+                    logger.info("Per-resource research approved by user")
+                    break
+                    
+                logger.info("User requested changes, retrying with feedback")
+                
+            except Exception as e:
+                logger.error(f"Error during per-resource research: {str(e)}")
+                # Restore original manifests on error
+                self.blackboard.manifests = original_manifests
+                logger.info("Restored original manifests after error")
+                await asyncio.sleep(1)  # Small delay before retry
+            
+        logger.info("Per-resource research flow completed")
 
     async def prepare_environment_flow(self): 
 
@@ -599,7 +785,14 @@ class DevopsFlow:
             return
 
         logger.info("First approach flow")
-        result = await self.first_approach(self.blackboard.manifests)
+        feedback = await self._wait_for_user_input("first_approach")
+        logger.info(f"User feedback received for first_approach: '{feedback}'")
+        logger.info("Passing user feedback to first_approach")
+        result = await self.first_approach(manifests=self.blackboard.manifests, feedback=feedback) 
+
+        logger.info("first_approach completed. Logging feedback for verification")
+        logger.info(f"Feedback passed to first_approach: '{feedback}'")
+
         json_record = result.json_dict
         if 'created_at' in json_record:
             json_record.pop('created_at')
@@ -633,14 +826,18 @@ class DevopsFlow:
                     self.blackboard.phase = "Improving High Severity Issues"
                     logger.info(f"Found {len(high_issues)} high-severity issues. Starting improvement phase...")
                     self._ensure_namespaces_exist()
-                    await self.basic_improve(high_issues)
+                    feedback = await self._wait_for_user_input(f"improve_high_severity_issues_{self.blackboard.iterations}")
+                    logger.info(f"User feedback received for improve_high_severity_issues: '{feedback}'")
+                    await self.basic_improve(high_issues, feedback=feedback)
                     logger.info("Improvement phase for high-severity issues completed.")
                 elif medium_issues:
                     self.blackboard.phase = "Improving Medium and Low Severity Issues"
                     issues_to_fix = medium_issues + low_issues
                     logger.info(f"Found {len(medium_issues)} medium-severity and {len(low_issues)} low-severity issues. Starting improvement phase...")
                     self._ensure_namespaces_exist()
-                    await self.low_importance_improve(issues_to_fix)
+                    feedback = await self._wait_for_user_input(f"improve_medium_low_severity_issues_{self.blackboard.iterations}")
+                    logger.info(f"User feedback received for improve_medium_low_severity_issues: '{feedback}'")
+                    await self.low_importance_improve(issues_to_fix, feedback=feedback)
                     logger.info("Improvement phase for medium and low-severity issues completed.")
                 else:
                     logger.info("No high or medium-severity issues found. Exiting test and improve flow.")
@@ -709,8 +906,8 @@ class DevopsFlow:
             #     self.blackboard = pickle.load(f)
             #     services._cache["blackboard"] = self.blackboard
 
-            # with open("blackboard.pkl", "wb") as f:
-            #     pickle.dump(self.blackboard, f)
+            with open("blackboard.pkl", "wb") as f:
+                pickle.dump(self.blackboard, f)
 
             ###################################
             #

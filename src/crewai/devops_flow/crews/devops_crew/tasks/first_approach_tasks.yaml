@@ -1,39 +1,47 @@
 write_solution:
   description: >
-    **If `<feedback>` exists, resolve it first.**
+    Persist-and-Lint Guide
 
-    **Goal — persist, lint, iterate until clean**
-    Using the context you received from the previous step, persist the YAML file
-    and lint it until it passes validation or validation errors received are not critical.
+    **Start Here**  
+    • If a **<feedback>** block is present, fix those items first. Feedback 
+    is mandatory.
 
-    **Workflow**
-    1. **Analyze** -  
-       Analyze all the manifests in the <manifest>, create a compiled version of the yaml file
-       with all the resources and ensure that all the resources are correct and valid. All this 
-       at the think level, without any action.
-    2. **create** -  
-       `Action: create_file  Action_Inputs: { ... }`  
-       Include the new definitions in the file. 
-       End each resource with ---, to leave the next file ready to be edited.
-    2. **Validate loop** -  
-       `Action: config_validator  Action_Inputs: { ... }`  
-       Analyze the validation until the validation is successful. Try to make the manifests comply with the best
-       practices as much as possible.
-    3. **Success** - final action *must* be a passing validation call 
-       (except for low severity security_scan, after not being possible to be solved).
+    **Goal**  
+    Save every manifest to the target file, then lint in a loop until
+    validation is clean or only low-severity warnings remain.
 
-    <Important>
-    * Take on count all the details in the <resource> section and in the blackboard, 
-    ensuring to take in count all informations like volumes, capabilities, ports, 
-    write permissions, volume claims, etc. All details are important.
-    * The file to be edited/created is the one in the <blackboard>, project, file_path. No other
-    files can be created or edited.
-    * Ensure no duplicate resources are created.
-    * Be extremely careful with the Yaml and Kubernetes syntax. 
-    * Ensure to write all the solution, it is very probable that there is no content in the file, 
-    so write all the solution. 
-    </Important>
+    **Step-by-Step Plan**
 
+    1. **Analyze**  
+      • Read all objects in **<manifest>** (not the file)
+      • In your head, stitch them into one valid YAML stream.  
+      • Double-check volumes, ports, securityContext, capabilities,
+        PVCs—every detail from **<resources>** and **<blackboard>**.
+
+    2. **Create / Update File**  
+      • `Action: create_file` Action_Inputs: { ... } with the merged YAML.  
+
+    3. **Validate Loop**  
+      • `Action: config_validator` Action_Inputs: { ... } on the file.  
+      • Fix every error that is not explicitly low-severity. If the low severity is fixable, fix it.
+      • Re-run the validator until it passes.
+
+    4. **Success Criteria**  
+      • Final action is a passing validation call.  
+      • Low-severity security warnings may remain **only** if unresolvable.
+
+    **Hard Rules**  
+    • No duplicate resources.  
+    • Perfect YAML and Kubernetes syntax.  
+    • One file edited—no extras.  
+    • No shortcuts or dirty fixes (e.g., BusyBox chown hacks).  
+    • Follow best practices for security and naming throughout.
+
+
+    5. Notes
+      Due a known issue with k8s, if runAsNonRoot is set to true, allowPrivilegeEscalation is set to false, even if you
+      add Capabilities to the container, the capabilities will not be applied.
+      
     <manifests>
     {manifests}
     </manifests>
@@ -62,41 +70,50 @@ write_solution:
 
 verify_solution:
   description: >
-    Use the config_validator tool to validate the solution, the yaml_read tool to read the file
-    and the yaml_edit tool to edit the file and apply the required corrections when necessary.
+      Lint-and-Fix Playbook
 
-    Fix the issues in the  following order:
-    1. yaml syntax errors
-    2. kubernetes syntax errors
-    3. duplicated elements
-    4. kubernetes --dry-run errors
-    5. security_scan high risk errors
-    6. security_scan medium risk errors
-    7. security_scan low risk errors
-    8. best practices errors
+      **Goal**  
+      The target manifest must pass validation and follow best practices.  
+      Only low-risk or best-practice warnings may remain—and only if
+      they conflict with a hard requirement.
 
-    <Steps>
-    1. Use the config_validator tool to validate the solution.
-    2. If the validation fails, use the yaml_read tool to read the file. You can read the full file or
-    a specific line range.
-    3. Use the yaml_edit tool to edit the file and apply the required corrections when necessary.
-    4. Check for duplicated elements in the file and remove them.
-    5. Repeat steps 1-4 until the validation passes. Its is mandatory to read before editing.
-    </Steps>
+      **Allowed Tools**  
+      • `config_validator` – run all checks  
+      • `yaml_read` – inspect the file (full or line range)  
+      • `yaml_edit` – patch the file after reading  
 
-    to end, the file must be valid and comply with the best practices. Only if it is not possible
-    to meet some low risk errors, or best practices errors, you can mark the task as completed even
-    when those two points are not met. The rest of the requirements (1 to 6) must be met.
+      **Fix Order (stop at success)**  
+      1. YAML syntax errors  
+      2. Kubernetes schema errors  
+      3. Duplicate objects  
+      4. `kubectl --dry-run` errors  
+      5. High-risk security_scan issues  
+      6. Medium-risk security_scan issues  
+      7. Low-risk security_scan issues  
+      8. Remaining best-practice warnings  
 
-    <Important>
-    - Pay special attention to all the fields of the validation output, and try to fix them all, with
-    the exception of security_scan errors, that are at your consideration to be fixed or not, 
-    depending on the severity or the level of contradiction with the configuration you require.
-    - If a security_scan error is found, but it is in contradiction with a configuration you 
-    require (a capability, a port, a volume, a user, a user group, etc), ignore it and mark the 
-    task as completed. You can also avoid repetitive triggers by skipping some of the security_scan checks filling
-    the skip_checks parameter with the check IDs you want to skip.
-    </Important>
+      **Workflow**  
+      1. **Validate** – run `config_validator`.  
+      2. **Read** – if errors appear, run `yaml_read` (entire file or affected
+        lines). Reading before editing is mandatory.  
+      3. **Edit** – use `yaml_edit` to fix what you just inspected.  
+      4. **De-dupe** – ensure no resource is declared twice.  
+      5. Repeat 1-4 until validation passes or only acceptable low-risk /
+        best-practice notes remain. Ignore 
+
+      **Security Notes**  
+      • If a security_scan finding conflicts with a required setting (caps,
+        ports, volumes, UID, etc.), you may skip that check via
+        `skip_checks`. Document the decision.  
+      • Never lower security purely for convenience.  
+
+      **Completion Criteria**  
+      • `config_validator` exits cleanly (or only ignorable low-risk /
+        best-practice notes).  
+      • File contains valid, well-formatted YAML and one resource per
+        document (`---` separators).  
+      • All edits occur in the single file specified by **<blackboard>**—no
+        new files.
 
   expected_output: >
     Ordered tool calls ending with:  

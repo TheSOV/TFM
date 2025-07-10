@@ -375,25 +375,6 @@ tests = ["cloudpickle ; platform_python_implementation == \"CPython\"", "hypothe
 tests-mypy = ["mypy (>=1.11.1) ; platform_python_implementation == \"CPython\" and python_version >= \"3.10\"", "pytest-mypy-plugins ; platform_python_implementation == \"CPython\" and python_version >= \"3.10\""]
 
 [[package]]
-name = "auth0-python"
-version = "4.10.0"
-description = ""
-optional = false
-python-versions = ">=3.8"
-groups = ["main"]
-files = [
-    {file = "auth0_python-4.10.0-py3-none-any.whl", hash = "sha256:c005cebbbe66bbfaa593353be76d7c9d52dc41fcb9680f815067496d5f3a9968"},
-    {file = "auth0_python-4.10.0.tar.gz", hash = "sha256:fca0f29cd32618803b59a940041ee78c6304de9ab5a02cd7863f82951affdee6"},
-]
-
-[package.dependencies]
-aiohttp = ">=3.10.11"
-cryptography = ">=43.0.1"
-pyjwt = ">=2.8.0"
-requests = ">=2.32.3"
-urllib3 = ">=2.2.3"
-
-[[package]]
 name = "authlib"
 version = "1.3.1"
 description = "The ultimate Python library in building OAuth and OpenID Connect servers and clients."
@@ -1467,27 +1448,26 @@ transformer = ["tokenizers", "transformers"]
 
 [[package]]
 name = "crewai"
-version = "0.126.0"
+version = "0.140.0"
 description = "Cutting-edge framework for orchestrating role-playing, autonomous AI agents. By fostering collaborative intelligence, CrewAI empowers agents to work together seamlessly, tackling complex tasks."
 optional = false
 python-versions = "<3.14,>=3.10"
 groups = ["main"]
 files = [
-    {file = "crewai-0.126.0-py3-none-any.whl", hash = "sha256:9c780c1d05ae739c249d96840b136d06e5b41eb63394fa74e26fe378ef7a1d42"},
-    {file = "crewai-0.126.0.tar.gz", hash = "sha256:2dc3a5159ccff8402a150c7242baa475b39c5ecf4652af967e8b430211c64586"},
+    {file = "crewai-0.140.0-py3-none-any.whl", hash = "sha256:0d220839b385e55d72e25ad27c84227a86977f2621da9fd424de9960ccfdc687"},
+    {file = "crewai-0.140.0.tar.gz", hash = "sha256:1eba7547464ab7d2515d77deb5ad3eea0a5afc1d7c722f790b2f88a6f7205128"},
 ]
 
 [package.dependencies]
 appdirs = ">=1.4.4"
-auth0-python = ">=4.7.1"
 blinker = ">=1.9.0"
 chromadb = ">=0.5.23"
 click = ">=8.1.7"
 instructor = ">=1.3.3"
-json-repair = ">=0.25.2"
+json-repair = "0.25.2"
 json5 = ">=0.10.0"
 jsonref = ">=1.1.0"
-litellm = "1.68.0"
+litellm = "1.72.6"
 onnxruntime = "1.22.0"
 openai = ">=1.13.3"
 openpyxl = ">=3.1.5"
@@ -1496,6 +1476,7 @@ opentelemetry-exporter-otlp-proto-http = ">=1.30.0"
 opentelemetry-sdk = ">=1.30.0"
 pdfplumber = ">=0.11.4"
 pydantic = ">=2.4.2"
+pyjwt = ">=2.9.0"
 python-dotenv = ">=1.0.0"
 pyvis = ">=0.3.2"
 regex = ">=2024.9.11"
@@ -1505,7 +1486,7 @@ tomli-w = ">=1.1.0"
 uv = ">=0.4.25"
 
 [package.extras]
-agentops = ["agentops (>=0.3.0)"]
+agentops = ["agentops (==0.3.18)"]
 aisuite = ["aisuite (>=0.1.10)"]
 docling = ["docling (>=2.12.0)"]
 embeddings = ["tiktoken (>=0.8.0,<0.9.0)"]
@@ -1513,7 +1494,7 @@ mem0 = ["mem0ai (>=0.1.94)"]
 openpyxl = ["openpyxl (>=3.1.5)"]
 pandas = ["pandas (>=2.2.3)"]
 pdfplumber = ["pdfplumber (>=0.11.4)"]
-tools = ["crewai-tools (>=0.46.0,<0.47.0)"]
+tools = ["crewai-tools (>=0.49.0,<0.50.0)"]
 
 [[package]]
 name = "crewai-tools"
@@ -3449,14 +3430,14 @@ files = [
 
 [[package]]
 name = "json-repair"
-version = "0.46.2"
+version = "0.25.2"
 description = "A package to repair broken json strings"
 optional = false
-python-versions = ">=3.10"
+python-versions = ">=3.7"
 groups = ["main"]
 files = [
-    {file = "json_repair-0.46.2-py3-none-any.whl", hash = "sha256:21fb339de583ab68db4272f984ec6fca9cc453d8117d9870e83c28b6b56c20e6"},
-    {file = "json_repair-0.46.2.tar.gz", hash = "sha256:4c81154d61c028ca3750b451472dbb33978f2ee6f44be84c42b444b03d9f4b16"},
+    {file = "json_repair-0.25.2-py3-none-any.whl", hash = "sha256:51d67295c3184b6c41a3572689661c6128cef6cfc9fb04db63130709adfc5bf0"},
+    {file = "json_repair-0.25.2.tar.gz", hash = "sha256:161a56d7e6bbfd4cad3a614087e3e0dbd0e10d402dd20dc7db418432428cb32b"},
 ]
 
 [[package]]
@@ -3981,14 +3962,14 @@ testing = ["black", "isort", "pytest (>=6,!=7.0.0)", "pytest-xdist (>=2)", "twin
 
 [[package]]
 name = "litellm"
-version = "1.68.0"
+version = "1.72.6"
 description = "Library to easily interface with LLM API providers"
 optional = false
 python-versions = "!=2.7.*,!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*,!=3.5.*,!=3.6.*,!=3.7.*,>=3.8"
 groups = ["main"]
 files = [
-    {file = "litellm-1.68.0-py3-none-any.whl", hash = "sha256:3bca38848b1a5236b11aa6b70afa4393b60880198c939e582273f51a542d4759"},
-    {file = "litellm-1.68.0.tar.gz", hash = "sha256:9fb24643db84dfda339b64bafca505a2eef857477afbc6e98fb56512c24dbbfa"},
+    {file = "litellm-1.72.6-py3-none-any.whl", hash = "sha256:e0ae98d25db4910e78b1a0a604f24c0d6875f6cdea02426b264a45d4fbdb8c46"},
+    {file = "litellm-1.72.6.tar.gz", hash = "sha256:4e5c7e4273b09b765302d2faaec30f77b42255c0055b427b55ea02b8092b8582"},
 ]
 
 [package.dependencies]
@@ -3998,15 +3979,17 @@ httpx = ">=0.23.0"
 importlib-metadata = ">=6.8.0"
 jinja2 = ">=3.1.2,<4.0.0"
 jsonschema = ">=4.22.0,<5.0.0"
-openai = ">=1.68.2,<1.76.0"
+openai = ">=1.68.2"
 pydantic = ">=2.0.0,<3.0.0"
 python-dotenv = ">=0.2.0"
 tiktoken = ">=0.7.0"
 tokenizers = "*"
 
 [package.extras]
+caching = ["diskcache (>=5.6.1,<6.0.0)"]
 extra-proxy = ["azure-identity (>=1.15.0,<2.0.0)", "azure-keyvault-secrets (>=4.8.0,<5.0.0)", "google-cloud-kms (>=2.21.3,<3.0.0)", "prisma (==0.11.0)", "redisvl (>=0.4.1,<0.5.0) ; python_version >= \"3.9\" and python_version < \"3.14\"", "resend (>=0.8.0,<0.9.0)"]
-proxy = ["PyJWT (>=2.8.0,<3.0.0)", "apscheduler (>=3.10.4,<4.0.0)", "backoff", "boto3 (==1.34.34)", "cryptography (>=43.0.1,<44.0.0)", "fastapi (>=0.115.5,<0.116.0)", "fastapi-sso (>=0.16.0,<0.17.0)", "gunicorn (>=23.0.0,<24.0.0)", "litellm-proxy-extras (==0.1.15)", "mcp (==1.5.0) ; python_version >= \"3.10\"", "orjson (>=3.9.7,<4.0.0)", "pynacl (>=1.5.0,<2.0.0)", "python-multipart (>=0.0.18,<0.0.19)", "pyyaml (>=6.0.1,<7.0.0)", "rq", "uvicorn (>=0.29.0,<0.30.0)", "uvloop (>=0.21.0,<0.22.0) ; sys_platform != \"win32\"", "websockets (>=13.1.0,<14.0.0)"]
+proxy = ["PyJWT (>=2.8.0,<3.0.0)", "apscheduler (>=3.10.4,<4.0.0)", "backoff", "boto3 (==1.34.34)", "cryptography (>=43.0.1,<44.0.0)", "fastapi (>=0.115.5,<0.116.0)", "fastapi-sso (>=0.16.0,<0.17.0)", "gunicorn (>=23.0.0,<24.0.0)", "litellm-enterprise (==0.1.7)", "litellm-proxy-extras (==0.2.3)", "mcp (==1.9.3) ; python_version >= \"3.10\"", "orjson (>=3.9.7,<4.0.0)", "pynacl (>=1.5.0,<2.0.0)", "python-multipart (>=0.0.18,<0.0.19)", "pyyaml (>=6.0.1,<7.0.0)", "rich (==13.7.1)", "rq", "uvicorn (>=0.29.0,<0.30.0)", "uvloop (>=0.21.0,<0.22.0) ; sys_platform != \"win32\"", "websockets (>=13.1.0,<14.0.0)"]
+utils = ["numpydoc"]
 
 [[package]]
 name = "lxml"
@@ -9497,4 +9480,4 @@ cffi = ["cffi (>=1.11)"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.10,<3.12"
-content-hash = "e1b80b82e7a6386c3d518bf3a459489716014a757c4fe147371c9bfd10a21262"
+content-hash = "5531edd3097b4a3b4bc0de0702849fbe6e8440030277f99c3d65dfb006daa38f"

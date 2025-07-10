@@ -104,18 +104,44 @@ def get_blackboard() -> Dict[str, Any]:
 
 
 @api_bp.route('/status', methods=['GET'])
-def get_status() -> Dict[str, Any]:
+def get_status():
     """
     Get the current status of the DevopsFlow.
     
     Returns:
-        Dict containing the status of the DevopsFlow.
+        JSON object containing the detailed status of the DevopsFlow.
     """
     is_running = state.devops_flow_thread and state.devops_flow_thread.is_alive()
-    return {
-        'status': 'running' if is_running else 'stopped',
-        'is_running': is_running
-    }
+    status_message = 'Process stopped'
+    is_waiting_for_input = False
+    step_name = ''
+
+    if is_running:
+        # Default status if blackboard is not available
+        status_message = 'Running...'
+        if state.devops_flow:
+            try:
+                blackboard = services.get("blackboard")
+                # Use the phase as the main status message, fallback if empty
+                status_message = blackboard.phase or 'Initializing...'
+                
+                interaction_status_string = blackboard.interaction.status
+                if interaction_status_string and interaction_status_string.startswith('waiting_for_input:'):
+                    is_waiting_for_input = True
+                    # Extract step name, e.g., from "waiting_for_input:first_approach"
+                    step_name = interaction_status_string.split(':', 1)[1]
+            except Exception as e:
+                # This can happen if the thread is running but blackboard service is not ready
+                status_message = 'Initializing...'
+                # Optionally log the error for debugging:
+                # print(f"Could not get detailed status from blackboard: {e}")
+
+    return jsonify({
+        'status': status_message,
+        'is_running': is_running,
+        'is_waiting_for_input': is_waiting_for_input,
+        'step_name': step_name
+    })
 
 
 @api_bp.route('/kill', methods=['POST'])
@@ -157,3 +183,66 @@ def kill_devops_flow() -> Dict[str, Any]:
         'status': 'success',
         'message': message
     }
+
+
+@api_bp.route('/interaction/mode', methods=['POST'])
+def set_interaction_mode():
+    """
+    Set the interaction mode for the DevopsFlow.
+    """
+    data = request.get_json()
+    if not data or 'mode' not in data:
+        return jsonify({'status': 'error', 'message': 'Mode not provided'}), 400
+    
+    mode = data['mode']
+    if mode not in ['assisted', 'automated']:
+        return jsonify({'status': 'error', 'message': "Invalid mode. Must be 'assisted' or 'automated'."}), 400
+
+    try:
+        blackboard = services.get("blackboard")
+        blackboard.interaction.mode = mode
+        return jsonify({'status': 'success', 'message': f'Interaction mode set to {mode}'})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': f'Failed to set interaction mode: {str(e)}'}), 500
+
+@api_bp.route('/interaction/status', methods=['GET'])
+def get_interaction_status():
+    """
+    Get the current interaction status from the blackboard.
+    """
+    try:
+        blackboard = services.get("blackboard")
+        user_input_wait_event = services.get("user_input_wait_event")
+        
+        interaction_status = blackboard.interaction.model_dump()
+        interaction_status['is_waiting'] = user_input_wait_event.is_set()
+        
+        return jsonify({
+            'status': 'success',
+            'interaction': interaction_status
+        })
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': f'Failed to get interaction status: {str(e)}'}), 500
+
+@api_bp.route('/interaction/resume', methods=['POST'])
+def resume_flow():
+    """
+    Resume the DevopsFlow by providing feedback and setting the resume event.
+    """
+    data = request.get_json()
+    feedback = data.get('feedback', '')
+
+    try:
+        blackboard = services.get("blackboard")
+        user_input_received_event = services.get("user_input_received_event")
+        
+        user_input_wait_event = services.get("user_input_wait_event")
+        if not user_input_wait_event.is_set():
+            return jsonify({'status': 'error', 'message': 'The system is not currently waiting for user input.'}), 409
+
+        blackboard.interaction.user_feedback = feedback
+        user_input_received_event.set()
+        
+        return jsonify({'status': 'success', 'message': 'Flow resume signal sent.'})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': f'Failed to resume flow: {str(e)}'}), 500

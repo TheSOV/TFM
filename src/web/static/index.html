@@ -195,6 +195,49 @@
             DevopsFlow
           </q-toolbar-title>
           <q-space />
+
+          <!-- Status Label -->
+          <q-chip dense :label="status" color="white" text-color="primary" class="q-mr-md" v-if="status" />
+
+          <!-- Cancel Button -->
+          <q-btn
+            flat
+            dense
+            round
+            icon="mdi-stop-circle-outline"
+            aria-label="Cancel"
+            @click="confirmKillProcess"
+            v-if="isProcessRunning"
+          >
+            <q-tooltip>Cancel Process</q-tooltip>
+          </q-btn>
+
+          <!-- Interaction Mode Label -->
+          <div class="q-mr-md text-white">
+            <span class="text-weight-medium">Mode:</span>
+            <span class="text-capitalize">{{ blackboard.interaction.mode }}</span>
+          </div>
+
+          <!-- Interaction Mode Buttons -->
+          <q-btn
+            flat
+            dense
+            @click="setInteractionMode('automated')"
+            :color="interactionMode === 'automated' ? 'yellow-6' : 'white'"
+            icon="mdi-robot-happy"
+            label="Automated"
+            class="q-mr-sm"
+          />
+          <q-btn
+            flat
+            dense
+            @click="setInteractionMode('assisted')"
+            :color="interactionMode === 'assisted' ? 'yellow-6' : 'white'"
+            icon="mdi-account-voice"
+            label="Assisted"
+            class="q-mr-md"
+          />
+
           <q-tabs v-model="currentTab" dense active-color="white" indicator-color="yellow-6" align="right">
             <q-route-tab 
               name="home" 

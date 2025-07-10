@@ -8,7 +8,7 @@ from crewai.tools import BaseTool, tool
 import io
 import json, pathlib
 from textwrap import dedent
-
+import re
 import src.crewai.tools.utils.yaml_toolkit as yt  # <-- import the low-level helpers
 
 # ------------------------------------------------------------------
@@ -60,8 +60,19 @@ class YAMLOperation(BaseModel):
     """
     Model for a key-specific operation in a YAML file.
     """
-    operation: Literal["add", "replace", "delete", "add_document", "delete_document"] = Field(..., description="Operation type: 'add', 'replace', 'delete', 'add_document', or 'delete_document'")
-    key: Optional[str] = Field(None, description="Dot-separated path for key-based operations (e.g., 'a.b.c'). Not used for 'add_document'.")
+    operation: Literal["add", "replace", "delete", "add_document", "delete_document"] = Field(
+        ..., 
+        description="Operation type: 'add', 'replace', 'delete', 'add_document', or 'delete_document'"
+    )
+    key: Optional[str] = Field(
+        None, 
+        description=(
+            "Path for key-based operations. Supports two formats for array indices: "
+            "1. Dot notation (e.g., 'spec.containers.0.image')\n"
+            "2. Bracket notation (e.g., 'spec.containers[0].image')\n"
+            "Not used for 'add_document' operation."
+        )
+    )
     value: Optional[Any] = Field(
         None,
         description=(
@@ -193,82 +204,53 @@ class YAMLEditTool(BaseTool):
                         if resource_key not in existing_resources:
                             existing_resources[resource_key] = {"index": i, "content": doc}
 
-            # Process 'delete_document' operations first to avoid index shifting issues.
-            delete_doc_indices = sorted([op['document_index'] for op in operations if op.get('operation') == 'delete_document'], reverse=True)
-            for index in delete_doc_indices:
-                if index < len(docs):
-                    del docs[index]
-                else:
-                    raise IndexError(f"Cannot delete document at index {index}: file only has {len(docs)} documents.")
-
-            # Process 'add_document' operations next, checking for duplicates.
-            add_doc_ops = [YAMLOperation(**op) for op in operations if op.get('operation') == 'add_document']
-            for op in add_doc_ops:
-                new_doc = op.value
-                if isinstance(new_doc, dict) and all(k in new_doc for k in ["apiVersion", "kind", "metadata"]):
-                    metadata = new_doc.get('metadata', {})
-                    if isinstance(metadata, dict) and 'name' in metadata:
-                        api_version = new_doc.get('apiVersion')
-                        kind = new_doc.get('kind')
-                        name = metadata.get('name')
-                        namespace = metadata.get('namespace')
-                        resource_key = (api_version, kind, name, namespace)
-
-                        if resource_key in existing_resources:
-                            existing_info = existing_resources[resource_key]
-                            error_msg = (
-                                f"Cannot add duplicate manifest. A resource with kind '{kind}' and name '{name}'"
-                            )
-                            if namespace:
-                                error_msg += f" in namespace '{namespace}'"
-                            error_msg += (
-                                f" already exists at document index {existing_info['index']}.\n"
-                                f"Existing resource content:\n{json.dumps(existing_info['content'], indent=2)}"
-                            )
-                            raise ValueError(error_msg)
-
-                        # Add to map to prevent adding duplicates from the same request batch
-                        existing_resources[resource_key] = {"index": len(docs), "content": new_doc}
-                
-                docs.append(op.value)
-
-            # Group other operations by document index
-            ops_by_doc = {}
+            # Process key-based operations first (add/replace/delete on keys)
             key_based_ops = [op for op in operations if op.get('operation') not in ['add_document', 'delete_document']]
+            ops_by_doc = {}
+            
+            # Group key-based operations by document index
             for op_data in key_based_ops:
                 op = YAMLOperation(**op_data)
                 if op.document_index not in ops_by_doc:
                     ops_by_doc[op.document_index] = []
                 ops_by_doc[op.document_index].append(op)
 
-            # Process operations for each document
+            # Process key-based operations for each document
             for doc_index, doc_ops in ops_by_doc.items():
                 if doc_index >= len(docs):
                     raise IndexError(f"Cannot access document at index {doc_index}: file only has {len(docs)} documents.")
                 
                 for op in doc_ops:
-                    if op.operation in ['add_document', 'delete_document']:
-                        continue
-
                     if not op.key:
                         raise ValueError("The 'key' must be provided for 'add', 'replace', or 'delete' operations.")
 
                     parent_ref = docs[doc_index]
-                    keys = op.key.split('.')
+                    
+                    # First, handle bracket notation by converting it to dot notation
+                    # This converts something like 'spec.containers[0].image' to 'spec.containers.0.image'
+                    normalized_key = re.sub(r'\[(\d+)\]', r'.\1', op.key)
+                    keys = normalized_key.split('.')
                     
                     # Traverse the path to find the parent of the target key
                     for key_part in keys[:-1]:
+                        if not key_part:  # Skip empty parts that might result from leading/trailing dots
+                            continue
+                            
                         try:
+                            # Try to convert to int for array access
                             index = int(key_part)
+                            if not isinstance(parent_ref, list):
+                                raise KeyError(f"Invalid key path '{op.key}'. Cannot use index '{index}' on a non-list.")
+                            if index >= len(parent_ref):
+                                raise IndexError(f"Index {index} is out of bounds for list in key '{op.key}'")
                             parent_ref = parent_ref[index]
                         except (ValueError, TypeError):
+                            # If not an int, treat as a dictionary key
                             if not isinstance(parent_ref, dict):
                                 raise KeyError(f"Invalid key path '{op.key}'. Cannot use string key '{key_part}' on a non-dict.")
+                            if key_part not in parent_ref:
+                                raise KeyError(f"Key '{key_part}' not found in path '{op.key}'")
                             parent_ref = parent_ref[key_part]
-                        except IndexError:
-                            raise IndexError(f"Invalid index '{key_part}' in key path '{op.key}'")
-                        except KeyError:
-                            raise KeyError(f"Invalid key '{key_part}' in key path '{op.key}'")
 
                     target_key_part = keys[-1]
 
@@ -305,6 +287,45 @@ class YAMLEditTool(BaseTool):
                             if target_key not in parent_ref:
                                 raise KeyError(f"Cannot delete key '{op.key}': key does not exist.")
                             del parent_ref[target_key]
+
+            # Process 'add_document' operations next, checking for duplicates.
+            add_doc_ops = [YAMLOperation(**op) for op in operations if op.get('operation') == 'add_document']
+            for op in add_doc_ops:
+                new_doc = op.value
+                if isinstance(new_doc, dict) and all(k in new_doc for k in ["apiVersion", "kind", "metadata"]):
+                    metadata = new_doc.get('metadata', {})
+                    if isinstance(metadata, dict) and 'name' in metadata:
+                        api_version = new_doc.get('apiVersion')
+                        kind = new_doc.get('kind')
+                        name = metadata.get('name')
+                        namespace = metadata.get('namespace')
+                        resource_key = (api_version, kind, name, namespace)
+
+                        if resource_key in existing_resources:
+                            existing_info = existing_resources[resource_key]
+                            error_msg = (
+                                f"Cannot add duplicate manifest. A resource with kind '{kind}' and name '{name}'"
+                            )
+                            if namespace:
+                                error_msg += f" in namespace '{namespace}'"
+                            error_msg += (
+                                f" already exists at document index {existing_info['index']}.\n"
+                                f"Existing resource content:\n{json.dumps(existing_info['content'], indent=2)}"
+                            )
+                            raise ValueError(error_msg)
+
+                        # Add to map to prevent adding duplicates from the same request batch
+                        existing_resources[resource_key] = {"index": len(docs), "content": new_doc}
+                
+                docs.append(op.value)
+
+            # Process 'delete_document' operations last, in reverse order to avoid index shifting
+            delete_doc_indices = sorted([op['document_index'] for op in operations if op.get('operation') == 'delete_document'], reverse=True)
+            for index in delete_doc_indices:
+                if index < len(docs):
+                    del docs[index]
+                else:
+                    raise IndexError(f"Cannot delete document at index {index}: file only has {len(docs)} documents.")
 
             # Write all documents back to the file
             p_path.parent.mkdir(parents=True, exist_ok=True)

@@ -65,7 +65,7 @@ apiClient.interceptors.response.use(
 
 const apiService = {
   // DevopsFlow endpoints
-  initDevopsFlow(prompt) {
+  startDevopsFlow(prompt) {
     return apiClient.post('/init', { prompt });
   },
   
@@ -77,8 +77,22 @@ const apiService = {
     return apiClient.get('/status');
   },
 
-  killDevopsFlow() {
-    return apiClient.post('/kill');
+  killProcess() {
+    // Set timeout to 0 for this specific request to make it indefinite
+    return apiClient.post('/kill', {}, { timeout: 0 });
+  },
+
+  // Interaction endpoints
+  setInteractionMode(mode) {
+    return apiClient.post('/interaction/mode', { mode });
+  },
+
+  getInteractionStatus() {
+    return apiClient.get('/interaction/status');
+  },
+
+  resumeFlow(feedback) {
+    return apiClient.post('/interaction/resume', { feedback });
   },
   
   // Add more API methods as needed

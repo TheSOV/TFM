@@ -80,3 +80,51 @@ class WeaviateHelper:
             )
 
             return results.objects
+            
+    def list_collections(self) -> list[dict]:
+        """
+        List all collections in the Weaviate database with their descriptions.
+        
+        Returns:
+            list[dict]: A list of dictionaries containing collection names and descriptions
+        """
+        with self.connect() as client:
+            collections = []
+            for collection_name in client.collections.list_all():
+                collection = client.collections.get(collection_name)
+                config = collection.config.get(True)
+                collections.append({
+                    "name": collection_name,
+                    "description": config.description if hasattr(config, 'description') else "No description"
+                })
+            return collections
+            
+    def delete_all_collections_except(self, collection_to_keep: str) -> dict:
+        """
+        Delete all collections except the specified one.
+        
+        Args:
+            collection_to_keep (str): Name of the collection to keep
+            
+        Returns:
+            dict: A dictionary with the results of the operation
+        """
+        results = {
+            'kept': collection_to_keep,
+            'deleted': [],
+            'errors': []
+        }
+        
+        with self.connect() as client:
+            for collection_name in client.collections.list_all():
+                if collection_name != collection_to_keep:
+                    try:
+                        client.collections.delete(collection_name)
+                        results['deleted'].append(collection_name)
+                    except Exception as e:
+                        results['errors'].append({
+                            'collection': collection_name,
+                            'error': str(e)
+                        })
+        
+        return results

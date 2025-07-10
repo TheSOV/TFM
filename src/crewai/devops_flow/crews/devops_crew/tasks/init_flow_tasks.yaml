@@ -1,69 +1,101 @@
 gather_information:
   description: >
-    **Goal - draft the manifest blueprint**  
-    Extract from *user_request* only the architectural and operational facts
-    needed to write Kubernetes YAML. Ensure to include all the files  that might be 
-    required to complete a full production grade application, even if in later stages
-    you will leave some of them empty or with default values. You wont be able to add
-    new files after this task.
+    Blueprint-Planning Guide (Markdown Output)
 
-    **What you must enumerate**
+    **Start Here**  
+    • If a **<feedback>** block is present, fix those items first. Feedback 
+    is mandatory.
 
-    • **System-level View** - micro-services, batch jobs, event buses and how they
-      talk (HTTP/gRPC, queue, topic).  
-    • **Cluster Topology** - target *single* cluster; propose namespace(s) that
-      are **never “default”** plus optional node-pool/taint hints.  
-    • **Component Catalogue** - workload → one-line mission → **image name
-      only** (e.g. nginx, redis, mycorp/api).  
-    • **Kubernetes Resources & Why** - include only objects we will
-      template: Deployment/StatefulSet, Service, Ingress | Gateway,
-      HPA/VPA, ConfigMap, RBAC, NetworkPolicy, ServiceAccount,
-      Volumes/PVC, AdmissionPolicy.  
-    • **Configuration Surface** - prelim Env Vars, ConfigMaps vs. Secrets
-      (do *not* mix, and for secrets always use stringData instead of data);
-      mount paths; projected tokens.  
-    • **Scalability & HA** - initial replica counts + HPA trigger metric
-      (CPU / memory), pod anti-affinity, upgrade strategy.  
-    • **Networking & Routing** - ClusterIP vs headless; ingress class; egress
-      allow/deny; DNS naming convention.  
-    • **Security Controls** - RBAC bindings, PodSecurityStandard level
-      (“baseline”/“restricted”); securityContext knobs
-      (runAsNonRoot, fsGroup); image-signature policy.    
-    • **External Dependencies** - DBs, caches, cloud services.  
-    • **Platform Constraints** - ARM/GPU, OS distro, container runtime.  
-    • **Namespaces** - define the namespaces that will be used in the cluster
-    • **Ports** - define if the ports that will be used  by the images are privileged ports (-1024) or unprivileged ports (+1024).
-    Prefer unprivileged ports (+1024) and remember to map them to the original port using the services. If not using privileged 
-    ports and or default ports (+1024), remember you might need to declare the them in configmap or service.
-    • **Capabilities** - define the capabilities that will be dropped and that will be added to the cluster
-    • **Manifests Layout** - repo tree *for test only*; no overlays:
-      ```
-      /manifests/
-        api-deployment.yaml
-        api-service.yaml
-      ```  
-      Use GitOps-friendly directory names (workloads/, network/, rbac/).
+    **Goal**  
+    Turn **<user_request>** into a high-level Kubernetes plan so another
+    engineer can build the cluster with no follow-up questions.  
+    Focus on Kubernetes wiring; image details come later.
 
-    *If any datum is missing, you can search, otherwise fallback to
-    published best practice.*
+    **Deliverable**  
+    *Markdown only* — no YAML, JSON, or code.  
+    Answer every bullet below with clear, concrete points.
 
-    <Important>
-       - You can use only images from DockerHub. If the user requests a specific image, 
-       you can use it, but if the image is not available, you must use an alternative 
-       image from DockerHub, searching with the available web and search tools. 
+    **What to Cover**
 
-       - It is totally forbidden to use images from other repositories.
+    1. **System Map**  
+      • List each micro-service, batch job, or event component.  
+      • Show how they communicate (HTTP / gRPC, queue, topic).
 
-       - Ensure to specify for each tentative yaml file, the elements and configurations
-       that are relative to it. Never mix two resources in the same yaml file during the 
-       planification steps.
+    2. **Cluster Layout**  
+      • Single cluster.  
+      • Meaningful namespaces (never `default`).  
+      • Optional node-pool / taint hints.
 
-       - At this point, do not include any specific image version, ports, users, users groups,
-       etc. You will do it in the next steps.
+    3. **Component Catalog**  
+      • For every workload: one-line mission + **Docker Hub image name only**  
+        (nginx, redis, mycorp/api).  
+      • If the requested image isn’t on Docker Hub, pick a safe alternative there.
 
-       - Your focus is to create a minimal, secure and production ready plan. Focus on the k8s 
-       implementation, and the minimal image configuration required to implement it.
-    </Important>
+    4. **Kubernetes Objects & Rationale**  
+      • List only what you will template: Deployment / StatefulSet, Service,  
+        Ingress | Gateway, HPA / VPA, ConfigMap, Secret, RBAC, NetworkPolicy,  
+        ServiceAccount, PVC / Volume, AdmissionPolicy.  
+      • Briefly explain *why* each is needed.  
+      • One YAML file per resource—never mix two kinds.
+
+    5. **Configuration Surface**  
+      • Initial env vars.  
+      • What lives in ConfigMaps vs. Secrets (never mix; Secrets use `stringData`).  
+      • Mount paths and projected tokens.
+
+    6. **Scalability & HA**  
+      • Starting replica count.  
+      • HPA trigger metric (CPU / Memory).  
+      • Pod anti-affinity.  
+      • Update strategy (Rolling / OnDelete).
+
+    7. **Networking**  
+      • Service type: ClusterIP or headless.  
+      • Ingress class or Gateway.  
+      • Egress policy (allow / deny).  
+      • DNS naming pattern.
+
+    8. **Security**  
+      • RBAC roles & bindings.  
+      • Pod Security Standard target: `baseline` or `restricted`.  
+      • Default `securityContext` (runAsNonRoot, fsGroup, readOnlyRootFilesystem,  
+        allowPrivilegeEscalation: false).  
+      • Capabilities to **drop** and any to **add** (only when justified).  
+      • Image-signature / policy controls.
+
+    9. **External Services**  
+      • Databases, caches, cloud APIs.
+
+    10. **Platform Limits**  
+        • CPU arch (x86 / ARM), GPU needs, OS distro, container runtime.
+
+    11. **Namespaces**  
+        • List every namespace and its purpose.
+
+    12. **Ports**  
+        • State whether each container needs a well-known ports or system ports (< 1024) or  
+          ephemeral or dynamic/private ports (> 1024).  
+        • Prefer ephemeral or dynamic/private ports and map them in the Service.  
+        • Declare non-default ports in ConfigMap or Service.
+
+    13. **Git Layout (test only)**  
+        ```
+        /manifests/
+          workloads/
+            api-deployment.yaml
+          network/
+            api-service.yaml
+          rbac/
+            api-role.yaml
+        ```
+        • GitOps-friendly names, no overlays or Kustomize yet.
+
+    **Rules**  
+    • Include every future file now, even if it starts empty.  
+    • Use only Docker Hub images—other registries are forbidden.  
+    • No specific versions, user IDs, or ports yet; that comes later.  
+    • Stick to current APIs; avoid hacks or workarounds.  
+    • If data is missing, use published best practices.
 
     <blackboard>
     {blackboard}
@@ -82,44 +114,55 @@ gather_information:
 
 research_project:
   description: >
-    **Goal - harden the blueprint with facts**  
-    Replace all placeholders in  with evidence-backed
-    content. Leave no placeholders, in case of missing information, you can search, 
-    otherwise fallback to published best practice. If in
-    the user request is not clear, assume the best practices and security.
-    Ensure to include all the files that might be 
-    required to complete a full production grade application, even if in later stages
-    you will leave some of them empty or with default values. You wont be able to add
-    new files after this task. Include the yaml files to create the namespace(s).
+    Blueprint-Hardening Guide (Evidence-Driven)
 
-    **Research workflow**
+    **Start Here**  
+    • If a **<feedback>** block is present, fix those items first. Feedback 
+    is mandatory.
 
-    1. Query official docs for each object.  
-    2. Check security/RBAC guidance (PodSecurity Standards, securityContext).  
-    3. Validate scaling values against HPA walkthroughs and custom-metric limits.  
-    4. Confirm directory/naming scheme with GitOps references (Argo CD, Flux).  
-    5. Note conflicts; resolve via community precedence (CNCF, SIG notes).  
-    6. Justify each change in ≤ 1 sentence with citation. 
+    **Goal**  
+    Turn every placeholder in the draft blueprint into a real value backed by
+    documentation or community consensus.  When data is missing, search; if it
+    truly can’t be found, fall back to current best practice.  Include **all**
+    YAML files needed for a production-grade app, including namespace
+    manifests—nothing may be added later.
 
-    <Important>
-       - You can use only images from DockerHub. If the user requests a specific image, 
-       you can use it, but if the image is not available, you must use an alternative 
-       image from DockerHub, searching with the available web and search tools. 
-       - It is totally forbidden to use images from other repositories.
-       - Ensure to specify for each tentative yaml file, the elements and configurations
-       that are relative to it. Never mix two resources in the same yaml file during the 
-       planification steps.
-       - At this point, do not include any specific image version, ports, users, users groups,
-       etc. You will do it in the next steps.
-       - Your focus is to create a minimal, secure and production ready plan. Focus on the k8s 
-       implementation, and the minimal image configuration required to implement it.
-    </Important>
+    **Approved Research Tools**  
+    • `rag` – fetch official docs and CNCF notes  
+    • `web_browser` – search vendor sites, SIG discussions, RFCs  
+    • `stack_overflow_tool` – check battle-tested fixes and edge cases  
+
+    **Workflow**  
+    1. Read official docs for every Kubernetes object you plan to ship.  
+    2. Pull security and RBAC guidance (Pod Security Standards,
+      `securityContext`, least-privilege RBAC).  
+    3. Verify scaling numbers with HPA/VPA examples and limits.  
+    4. Align directory names with common GitOps layouts (Argo CD / Flux).  
+    5. Spot conflicts and resolve them using CNCF or SIG precedents.  
+    6. For each change, write ≤ 1-sentence justification **with citation**.
+
+    **Hard Rules**  
+    • **Docker Hub images only.**  If the requested image is missing, choose a
+      comparable one from Docker Hub and note the swap.  
+    • One resource per YAML file; never mix kinds.  
+    • Do **not** set image tags, ports, user IDs, or GIDs yet—those come later.  
+    • Keep the plan minimal, secure, production-ready; no hacks or
+      workarounds.  
+    • Stick to supported API versions.
+
+    <blackboard>
+    {blackboard}
+    </blackboard>
+
+    <feedback>
+    {feedback}
+    </feedback>
 
   expected_output: >
     Narrative prose or structured Markdown—**no YAML/JSON/code blocks**—that replaces
     all placeholders with fact-based content, backed by cited sources.
     Include only container image names. Each field must present precise, actionable
-    information ready for engineering implementation.
+    information ready for engineering implementation. It can be as extended as you need.
   markdown: true
   max_retries: 3
   context:
@@ -128,70 +171,90 @@ research_project:
 
 create_advanced_plan:
   description: >
-    **Goal - production-ready manifest playbook**  
-    Guide a senior engineer through every ordered step required to finish all
-    YAML—*pre-observability*, single **/manifests** tree.
+    **Start Here**  
+    • If a **<feedback>** block is present, fix those items first. Feedback 
+    is mandatory.
 
-    Your focus is the advanced plan. 
+    Production-Ready Manifest Playbook (Markdown Output)
 
-    **Deliverable**
+    **Mission**  
+    Walk a senior engineer—step by step—through finishing every Kubernetes
+    manifest for a single-node **kind** cluster.  Aim for tight security,
+    clean GitOps flow, and zero hacks.
 
-    • **Manifests Layout** - **no overlays**; create the layout tree, with 
-     GitOps-friendly directory names (workloads/, network/, rbac/), 
-     based on the previous research. Include the yaml files to create the namespace(s). Example:  
-      ```
+    **1. Directory Tree (no overlays)** 
       /manifests/
-        workloads/
-          workload1_name.yaml
-          workload2_name.yaml
-        network/
-        rbac/
-        folder/
-          folder1/
-            folder1_name.yaml
-            folder2_name.yaml
-          folder2/
-            folder2_name.yaml
-      ``` 
+        workloads/ # Deployments, StatefulSets, Jobs
+        network/ # Services, Ingresses / Gateways, NetworkPolicies
+        storage/ # PVCs, StorageClasses (if any)
+        rbac/ # ServiceAccounts, Roles, RoleBindings
+        admission/ # Validating / Mutating policies
+        namespaces/ # One file per namespace
 
-      Include all the folders and files required for a high level, top quality, 
-      production ready plan.
+    *Create every folder and placeholder file now—even if some stay empty
+    until a later pass.*
 
-    Include the configuration steps to make the folder work with 
-      the best practices and security.
+    **2. File-by-File Checklist**  
+    | Folder | File Name | Must Contain | Why |
+    |--------|-----------|--------------|-----|
+    | namespaces/ | `<team>.yaml` | Namespace object with `labels` for owner & PodSecurity level. | Keeps resources out of `default`; enforces Restricted PSP. |
+    | workloads/ | `api-deployment.yaml` | Deployment skeleton, `spec.selector`, **no tag yet**. | Core stateless service. |
+    | network/ | `api-service.yaml` | ClusterIP Service, ephemeral or dynamic/private container port, map to original via `targetPort`. | Clean routing; well-known ports. |
+    | rbac/ | `api-sa.yaml` | ServiceAccount with minimal permissions. | Follows least-privilege. |
+    | rbac/ | `api-role.yaml` & `api-rolebinding.yaml` | Read-only access to namespace ConfigMaps/Secrets. | Prevents lateral movement. |
+    | admission/ | `image-policy.yaml` | AdmissionPolicy blocking non-DockerHub images. | Enforces repo rule. |
 
-    Try to write step by step what should the manifest contain, with a very 
-    brief explanation of why.
+    *(Repeat rows for each workload.)*
 
-    • Define the capabilities that will be dropped and that will be added to the cluster
+    **3. Capabilities Policy**  
+    - **Drop**: `ALL` by default.  
+    - **Add**: only what the image strictly needs (`NET_BIND_SERVICE` if
+      mapping well-known ports, etc.).  
+    - Set `allowPrivilegeEscalation: false`; raise to `true` **only** if a
+      needed capability demands it—and document the reason in comments.
 
-    No code is required. It is a verbal explanation of what should be done.
+    **4. Security Context Defaults**  
+    - `runAsNonRoot: true`, `readOnlyRootFilesystem: true` always possible
+    - `fsGroup` for shared volume writes (avoid BusyBox `chown` workarounds)  
+    - `seccompProfile: RuntimeDefault` always possible
+    - `automountServiceAccountToken: false` unless the pod calls Kubernetes API
 
-    • Any other considerations or information that you think are important, such as specific 
-    configuration steps, specific informat  ion of a component, image etc. (here, you can hit 
-    devops_researcher for recommended images (the image from other repos, but prefer official 
-    images) would met the required criteria, in the case that the user does not explicitly ask 
-    for a specific image, some extra data, etc, but do not pin the version of the images yet).
+    **5. Networking Rules**  
+    - One **ClusterIP** per service; headless only for StatefulSets.  
+    - Ingress/Gateway uses path-based routing, `nginx` class by default.  
+    - NetworkPolicy: deny all egress except required external services.
+    - Use
 
-    • **Out-of-Scope** - observability, cost tuning, chaos tests.
+    **6. Scaling & Availability**  
+    - Start with  a selected number of replicas depending on the workload type and user requirements.  
+    - Same for HPA targets and upgrade strategy.  
+    - Anti-affinity skipped (single node), but keep the rule commented for
+      future multi-node use.
 
-    Include references if you use any.
+    **7. Storage**  
+    - `emptyDir` for scratch, PVC (`ReadWriteOnce`) for data.  
+    - Volume names match mounts; read-only vs read-write flags explicit.
+    - Use FsGroup and ReadOnlyRootFilesystem:True to allow non-root users to write to the volume when possible
+    - Avoid to use `initContainer` or other workarounds just to fix permissions.
 
-    <Important>
-       - You can use only images from DockerHub.
-       - Ensure to specify for each tentative yaml file, the elements and configurations
-       that are relative to it. Never mix two resources in the same yaml file during the 
-       planification steps.
-       - Your focus is to create a minimal, secure and production ready plan. Focus on the k8s 
-       implementation, and the minimal image configuration required to implement it.
-      - Ensure that the plan matches the request of the user requirements (except for the 
-      Manifests Layout, that will be high end, production ready with best practices and security).
-      - The output MUST be a markdown, NOT a reference to it, 
-      like the phrase "like above".
-      - At this point, do not include any specific image version, ports, users, users groups,
-       etc. You will do it in the next steps.
-      - Take in count that we are working on a single node kind cluster.
-    </Important>
+    **8. GitOps Alignment**  
+    - One resource per file.  
+    - File names match the object’s metadata.name.  
+    - Use Kustomize bases **later**—not at this stage, do not include.
+
+    **9. Hard Rules (Failure to comply blocks merge)**  
+    - **Docker Hub images only.**  
+    - No image tags, user IDs, or GIDs until the next phase, but state to prefer dynamic/private/ephemeral ports over well-known ports.
+    - Any workaround (e.g., `initContainer` just to fix perms) must be removed
+      or justified in writing—and will face strict review.  
+    - Use only non-deprecated API versions.
+
+    **10. Out-of-Scope**  
+    Observability, cost tuning, chaos testing.
+
+    11. Notes
+    Due a known issue with k8s, if runAsNonRoot is set to true, allowPrivilegeEscalation is set to false, even if you
+      add Capabilities to the container, the capabilities will not be applied.
 
     <blackboard>
     {blackboard}

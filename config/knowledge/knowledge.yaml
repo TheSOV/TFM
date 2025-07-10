@@ -1,6 +1,6 @@
 collections:
-  - name: "kubernetes_fundamentals"
-    description: "Theoretical knowledge about Kubernetes. Contains information about the fundamentals of Kubernetes (concepts, architecture, etc.)."
+  - name: "knowledge"
+    description: "Knowledge about Kubernetes, Docker and Checkov Validation errors."
     dirs:
       - "knowledge\\kubernetes\\website-main\\content\\en\\docs"
     rules:
@@ -10,8 +10,8 @@ collections:
       max_length: -1
       generate_summary: false
 
-  - name: "kubernetes_fundamentals"
-    description: "Theoretical knowledge about Kubernetes. Contains information about the fundamentals of Kubernetes (concepts, architecture, etc.)."
+  - name: "knowledge"
+    description: "Knowledge about Kubernetes, Docker and Checkov Validation errors."
     dirs:
       - "knowledge\\kubernetes\\kubernetes-lab-tutorial-master\\content"
     rules:
@@ -21,8 +21,8 @@ collections:
       max_length: -1
       generate_summary: false
 
-  - name: "kubernetes_fundamentals"
-    description: "Theoretical knowledge about Kubernetes. Contains information about the fundamentals of Kubernetes (concepts, architecture, etc.)."
+  - name: "knowledge"
+    description: "Knowledge about Kubernetes, Docker and Checkov Validation errors."
     dirs:
       - "knowledge\\kubernetes\\kubernetes-the-hard-way-master\\docs"
     rules:
@@ -32,8 +32,8 @@ collections:
       max_length: -1
       generate_summary: false
 
-  - name: "kubernetes_code"
-    description: "Theoretical knowledge about Kubernetes. Contains information about the fundamentals of Kubernetes (concepts, architecture, etc.)."
+  - name: "knowledge"
+    description: "Knowledge about Kubernetes, Docker and Checkov Validation errors."
     dirs:
       - "knowledge\\kubernetes\\website-main\\content\\en\\examples"
     rules:
@@ -43,8 +43,8 @@ collections:
       max_length: -1
       generate_summary: true
 
-  - name: "kubernetes_checkov_problems"
-    description: "Descriptions and solutions for problems found by Checkov in the Kubernetes code. Inlcudes de ID of the problem, the description, the severity and the solution."
+  - name: "knowledge"
+    description: "Knowledge about Kubernetes, Docker and Checkov Validation errors."
     dirs:
       - "knowledge\\checkov\\prisma-cloud-docs\\en\\enterprise-edition\\policy-reference\\kubernetes-policies\\kubernetes-policy-index"
     rules:
@@ -54,8 +54,8 @@ collections:
       max_length: -1
       generate_summary: false
 
-  - name: "kubernetes_code"
-    description: "Theoretical knowledge about Kubernetes. Contains information about the fundamentals of Kubernetes (concepts, architecture, etc.)."
+  - name: "knowledge"
+    description: "Knowledge about Kubernetes, Docker and Checkov Validation errors."
     dirs:
       - "knowledge\\kubernetes\\kubernetes-lab-tutorial-master\\examples"
     rules:
@@ -66,8 +66,8 @@ collections:
       generate_summary: true
 
 
-  - name: "docker_fundamentals"
-    description: "Theoretical knowledge about Docker. Contains information about the fundamentals of Docker (concepts, architecture, etc.)."
+  - name: "knowledge"
+    description: "Knowledge about Kubernetes, Docker and Checkov Validation errors."
     dirs:
       - "knowledge\\docker\\docs-main\\content\\get-started"
       - "knowledge\\docker\\docs-main\\content\\guides"
@@ -79,8 +79,8 @@ collections:
       max_length: -1
       generate_summary: false
 
-  - name: "docker_code"
-    description: "Code examples about Docker."
+  - name: "knowledge"
+    description: "Knowledge about Kubernetes, Docker and Checkov Validation errors."
     dirs:
       - "knowledge\\docker\\docs-main\\content\\reference"
     rules:
@@ -90,8 +90,8 @@ collections:
       max_length: -1
       generate_summary: true
 
-  - name: "docker_checkov_problems"
-    description: "Descriptions and solutions for problems found by Checkov in the Docker code. Inlcudes de ID of the problem, the description, the severity and the solution."
+  - name: "knowledge"
+    description: "Knowledge about Kubernetes, Docker and Checkov Validation errors."
     dirs:
       - "knowledge\\checkov\\prisma-cloud-docs\\en\\enterprise-edition\\policy-reference\\docker-policies\\docker-policy-index"
     rules:

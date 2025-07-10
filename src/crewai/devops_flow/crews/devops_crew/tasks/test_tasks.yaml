@@ -153,12 +153,13 @@ aggregate_cluster_issues:
     </feedback>
 
   expected_output: >
-    Comprehensive, well documented and deduplicated plain text list of issues with: issue, 
-    problem_description, possible_manifest_file_path, severity, observations, and any other 
-    relevant information.
-
-    The description of the problem must contain a detailed description of the issue, 
-    analyzing deeply the cause of each issue.
+    A list of JSON objects, each object containing:
+     - issue: a brief and ilustrative title of the issue
+     - problem_description: a complete description of the issue, with all the details and context. 
+     Focus on extracting relevant information, about all the possible issues found in the cluster,
+     only taking in count the information obtained from the tools. Do not propose solutions here.
+     - severity: the severity of the issue (must be one of: LOW, MEDIUM, HIGH)
+    
   
   max_retries: 3
   context:
@@ -216,7 +217,8 @@ log_cluster_issues:
     {{
       "agent": "devops_tester",
       "task_name": "Log Cluster Issues Summary",
-      "task_description": "A summary of the cluster issues found, including the number of issues by severity and the most critical blocker. For example: 'Found 5 issues (2 High, 2 Medium, 1 Low). The most critical blocker is the database connection failure.'"
+      "task_description": "A summary of the cluster issues found, including the number of issues by 
+      severity and the most critical blocker.'"
     }}
   max_retries: 3
   context:

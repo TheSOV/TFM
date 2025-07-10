@@ -21,7 +21,6 @@ class Issue(BaseModel):
     issue: str = Field(..., description="Brief and ilustrative title of the issue")
     severity: SEVERITY_TYPE = Field(..., description=f"Severity of the issue (must be one of: {SEVERITY_TYPE}).")
     problem_description: str = Field(..., description="Complete description of the issue, with all the details and context")
-    observations: str = Field(..., description="Any additional observations or comments")
     created_at: str = Field(
         default_factory=lambda: datetime.datetime.now(datetime.timezone.utc).strftime("%H:%M:%S"),
         description="Time when the issue was created (HH:MM:SS UTC)"

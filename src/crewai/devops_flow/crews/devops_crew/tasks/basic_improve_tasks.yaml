@@ -1,5 +1,6 @@
 analyse_manifest_issue:
   description: >
+    **Feedback** is mandatory over all other information.
     **Goal - Determine root cause of the problem, isolate the issue and propose a solution**  
 
     <Steps>
@@ -70,12 +71,13 @@ analyse_manifest_issue:
       - issues: List of issues to which the solution applies
       - resource: Resource where the issue was found and the solution will be applied
       - section: Specific section of the code, where the issue was found and the solution will be applied
-      - solution: Modifications to be applied to the resource, to solve the issue
+      - changes: Modifications to be applied to the resource, to solve the issue
   max_retries: 3
   agent: devops_researcher
 
 apply_manifest_fix:
   description: >
+    **Feedback** is mandatory over all other information.
     **Goal - edit, lint, repeat until clean**  
     Apply the agreed fixes, given in the context received, run 
     validation (security scan disabled), and exit only after the 
@@ -116,6 +118,7 @@ apply_manifest_fix:
 
 verify_solution:
   description: >
+    **Feedback** is mandatory over all other information.
     Use the config_validator tool to validate the solution, the yaml_read tool to read the file
     and the yaml_edit tool to edit the file and apply the required corrections when necessary.
 
@@ -167,6 +170,9 @@ verify_solution:
     Editing the file is mandatory.
     </Important>
   max_retries: 3
+  context:
+    - analyse_manifest_issue
+    - apply_manifest_fix
   agent: devops_engineer
 
 log_manifest_fix:

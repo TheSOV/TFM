@@ -23,15 +23,24 @@ from src.crewai.tools.yaml_tools import YAMLReadTool, YAMLEditTool
 
 from crewai_tools import BraveSearchTool
 
+# Import logging
+import logging
+logger = logging.getLogger(__name__)
+
 
 _registry: Dict[str, Tuple[Callable[[], Any], bool]] = {}
 _cache:    Dict[str, Any] = {}
 
 def init_services_with_path(path: str, filename: str):
-    # Use a sensible default 'temp' instead of `path` to avoid creating incorrect paths like 'project/project'
-    temp_files_dir = os.getenv("TEMP_FILES_DIR", "temp")
-    full_path = os.path.join(temp_files_dir, path)
-    file_path = os.path.join(full_path, filename)
+    # Convert all paths to absolute paths at initialization
+    temp_files_dir = os.path.abspath(os.getenv("TEMP_FILES_DIR", "temp"))
+    full_path = os.path.abspath(os.path.join(temp_files_dir, path))
+    file_path = os.path.abspath(os.path.join(full_path, filename))
+    
+    # Ensure the directory exists
+    os.makedirs(full_path, exist_ok=True)
+    
+    logger.info(f"Initializing services with paths - temp_dir: {temp_files_dir}, full_path: {full_path}, file_path: {file_path}")
 
     # Register kubectl tool with configuration from environment
     def get_namespace_set(env_var: str) -> Optional[set]:
@@ -58,17 +67,17 @@ def init_services_with_path(path: str, filename: str):
 
     register(f"config_validator_{path}", 
     lambda: ConfigValidatorTool(
-        file_path=file_path
+        file_path=file_path  # Already absolute
     ), singleton=False)
 
     register(f"yaml_read_{path}", 
     lambda: YAMLReadTool(
-        file_path=file_path
+        file_path=file_path  # Already absolute
     ), singleton=False)
     
     register(f"yaml_edit_{path}", 
     lambda: YAMLEditTool(
-        file_path=file_path
+        file_path=file_path  # Already absolute
     ), singleton=False)
     
     # register(f"file_create_{path}", 
@@ -148,7 +157,9 @@ def init_services():
     
     # Register other services here as needed
     register("kill_signal_event", lambda: threading.Event(), singleton=True) # Ensure threading is imported
-
+    register("user_input_wait_event", lambda: threading.Event(), singleton=True)
+    register("user_input_received_event", lambda: threading.Event(), singleton=True)
+    
 
     register("docker_image_analysis_tool", 
     lambda: DockerImageAnalysisTool(), singleton=False)

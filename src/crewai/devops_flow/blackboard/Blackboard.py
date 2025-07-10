@@ -9,6 +9,7 @@ from src.crewai.devops_flow.blackboard.utils.Record import Record
 from src.crewai.devops_flow.blackboard.utils.Issue import Issue
 from src.crewai.devops_flow.blackboard.utils.Image import Image
 from src.crewai.devops_flow.blackboard.utils.Events import Events
+from src.crewai.devops_flow.blackboard.utils.Interaction import Interaction
 
 ## Main State, used to track the progress and results of the DevOps flow execution
 class Blackboard(BaseModel):
@@ -32,6 +33,7 @@ class Blackboard(BaseModel):
     iterations: int = 0
     phase: str = "Waiting for kickoff"
     events: Events = Field(default_factory=Events, exclude=False)
+    interaction: Interaction = Field(default_factory=Interaction)
     
 
     def __init__(self, user_request: str = "", **data):
@@ -62,6 +64,7 @@ class Blackboard(BaseModel):
         self.records = []
         self.iterations = 0
         self.phase = "Waiting for kickoff"
+        self.interaction = Interaction()
 
     def export_blackboard(
         self,
@@ -98,6 +101,9 @@ class Blackboard(BaseModel):
 
         # remove events
         data.pop('events', None)
+
+        # remove interaction
+        data.pop('interaction', None)
 
         # Filter and order issues by severity
         if 'issues' in data:

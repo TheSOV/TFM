@@ -1,5 +1,9 @@
 per_resource_research:
   description: >
+    **Start Here**  
+    • If a **<feedback>** block is present, fix those items first. Feedback 
+    is mandatory.
+
     **Goal**  
     Research and design a production-grade Kubernetes manifest for each of the resources  
     **<resources>** referenced in the **<blackboard>**.  
@@ -16,105 +20,75 @@ per_resource_research:
 
     **Methodology**
 
-    1. **Extract Context**  
-       - Parse the **<blackboard>** for:
-         - Resource kind (Deployment, StatefulSet, Job, DaemonSet, etc.).  
-         - Container image(s), tags/digests (use the given digest in the image
-         information of the blackboard if available), and declared user (`USER`)
-           directives (if applies).  
-         - Stated volume needs, data paths, temp/cache paths, and
-           configuration files (if applies).  
-         - Non-volume requirements (ports, probes, resource requests) that
-           could influence volume choices (e.g. log directories) (if applies).  
+    1. Read the <blackboard>
 
-    2. **Deep-Dive Research (per resource type and specific for the current image being used, if applies)**  
-       - Standard and optional spec fields affecting volumes:
-         - `volumes`, `volumeMounts`, `volumeClaimTemplates`
-           (StatefulSet), projected volumes, `subPath`, access modes (if applies). - Sometimes, multiple subdirectories inside a same directory requires to be written,
-            make writable the parent directory or each subdirectory. For example:
-            if there is folder 1/folder 1.1/folder 1.1.1, and folder 1/folder 1.2/folder 1.2.1, and folder 1/folder 1.3/folder 1.3.1, 
-            make writable folder 1 directory.  
-          - All the directories that requires to be writable, are not present in the docker information,
-          so it would be a good idea to make a internet search for information about the image being used,
-          and check if it requires to make writable other directories that the ones in the image information
-          and explain it here.
-       - Default behaviors:
-         - Pod restart policies, identity retention, scheduling guarantees,
-           rolling update mechanics (if applies).  
-       - Interactions with `securityContext` (`runAsUser`, `fsGroup`,
-         `readOnlyRootFilesystem`) that change filesystem ownership or
-         writability (if applies).  
-       - Storage backend constraints (ReadWriteOnce vs ReadWriteMany,
-         RWOP, topology hints) (if applies).  
-       - Position and content of the ConfigMap depending on the root
-       access level (if applies).
-       - Analyze those aspects for the current image (if applies)
-       - If possible, use non privileged ports ( +1024 if applies). 
-       If not using privileged ports and or default ports (+1024), 
-       remember you might need to declare the them in configmap or service.
-       - ** Important ** Image configurations that are not explicitly requested must be left at default, or minimum required if they are needed to be included.
-       Focus on the kubernetes deployment, ignore small, non-essential details of the image.
+        Note the workload type (Deployment, StatefulSet, Job, etc.).
 
-    3. **Identify Typical Pitfalls**  
-       - Writes to ConfigMap/Secret volumes (if applies).  
-       - PVC reuse across replicas with RWO backends (if applies).  
-       - Volume name mismatches or omissions (if applies).  
-       - Shadowing image files by mounting over populated directories (if applies).  
-       - Non-root containers lacking write permissions on root-owned
-         volumes (if applies).  
-       - Enabling `readOnlyRootFilesystem` without providing writable
-         scratch space (if applies).  
-       - Adding config values to the ConfigMap that container cant use
-         due to it privilege level (if applies).
-       - Analyze those aspects for the current image (if applies)
-       - Define the capabilities that will be dropped and that will be added to the cluster 
-       (if applies)
-       - Check if the image if the image requires Privileges Scalation to use the defined 
-       capabilities (if applies)
-       - Verify if privileded ports are required or if unprivileged ports are enough (if applies, prefer always unprivileged ports)
-       - Verify if the image requires to run as root or it can be run as non-root (if applies, prefer always non-root)
-       - Remember that when you use allowPrivilegeEscalation: false, even if you use capabilities: Add
-       new capabilities will not be added, so if you will drop and add capabilities to use some 
-       privileged feature, you will need to set allowPrivilegeEscalation: true.
-       - Ensure to match the config of the ports in all the required files (deployment, service, ingress, configmap, etc.)
+        Capture every container image and its tag or digest.
 
-    4. **Synthesize Best-Practice Recommendations**  
-       - Volume type selection matrix (PVC vs `emptyDir` vs projected) (if applies).  
-       - Access-mode guidelines (if applies).  
-       - Ownership/permission recipes (`fsGroup`, init-container `chown`,
-         etc.) (if applies).  
-       - Define resources for each container - this can avoid noisy neighbor issues
-       - Clean-up and retention policies for StatefulSet PVCs (if applies).  
-       - Define the securityContext for each container (if applies)
-       - Define the seccompProfile for each container (if applies)
-       - Define the automountServiceAccountToken for each container (if applies)
-       - Ensure to use only updated components, not any deprecated resources.
+        List paths the app needs to read or write (logs, data, cache, config).
 
-    5. **Draft Preliminary YAML**  
-       - Start from a minimal, valid skeleton for the detected resource
-         kind.  
-       - Add fully-explained `volumes` / `volumeMounts` sections,
-         annotated with inline comments for clarity.  
-       - Include securityContext tuned to container UID/GID. (If applies) 
-       - Stub or inject ConfigMaps/Secrets with correct `readOnly`
-         semantics. For secrets always use stringData instead of data. (If applies)
-       - Fill any unknowns with best practices defaults or minimal functional versions.  
-       - At the end, the yaml file should be a production-ready file, with all the 
-        necessary information and configurations, and follow the best practices for 
-        the resource kind.
-       - Ports, users, users groups, etc. should be non privileged ( use non privileged
-       ports (+1024) and map them to the original port using the services.) Specify the 
-       number of the port to be use, the remapping and a a brief explanation, so  there is no
-       errors when generating the yaml files because of trying to use the default, privileged ports.
-       - Take in count that we are working on a single node kind cluster.
+        Record other hints that affect storage: ports, probes, resource requests.
 
-    6. **Self-Validation & Handoff**  
-       - Cross-check that every `volumeMount.name` has a matching entry in
-         `volumes`/`volumeClaimTemplates` (if applies).  
-       - Ensure no read-write path is backed by a read-only volume (if applies).  
-       - Confirm Pod-level vs container-level securityContext placement (if applies).  
-       - Provide next-step guidance (e.g. run `kubectl apply
-         --dry-run=client -o yaml` for schema validation) (if applies).  
+    2. Check the Image & Specs
+
+        Look up the image’s docs to see which folders must be writable.
+
+        Decide which volume fields you really need: volumes, volumeMounts, volumeClaimTemplates, subPath, access modes.
+
+        Keep defaults unless a change is truly required.
+
+        Prefer:
+
+            Non-root users (runAsUser, runAsNonRoot).
+
+            Ephemeral or dynamic/private ports (> 1024).
+
+            allowPrivilegeEscalation: false whenever possible.
+
+        Never rely on “quick fixes” (e.g., a BusyBox init-container just to chown).
+
+        In case that you need to add capabilities to the container, remember to drop unused 
+        capabilities and set allowPrivilegeEscalation: true.
+
+    3. Avoid Common Mistakes
+
+        Don’t write into ConfigMap or Secret mounts.
+
+        Don’t share a ReadWriteOnce PVC across replicas.
+
+        Make sure every volumeMount.name exists in volumes.
+
+        Don’t mount over a directory the image already populates.
+
+        Give non-root containers write access or a scratch emptyDir.
+
+        Keep port numbers consistent across Deployment, Service, Ingress, ConfigMap.
+
+    4. Apply Best Practices
+    
+        - Volume type	emptyDir for scratch, PVC for persistent data, projected for bundled config.
+        - Access mode	Match the app’s real needs; default to RWO unless shared writes are required.
+        - Permissions	Use fsGroup or let the image own the path; avoid manual chmod.
+        - Resources	Set CPU & memory requests/limits for every container.
+        - Security	Define securityContext, seccompProfile, and drop unused capabilities.
+        - API versions	Use only current, non-deprecated APIs.
+
+    5. Draft the YAML
+
+        Start with the minimal skeleton for the workload kind.
+
+        Add volumes and volumeMounts; comment each one.
+
+        Set securityContext (UID/GID, readOnlyRootFilesystem, etc.).
+
+        Add ConfigMaps/Secrets as read-only (use stringData for Secrets).
+
+        Map any well-known port (e.g., 1 - 1024) to an ephemeral or dynamic/private container port (e.g., 8080) and expose it through the Service.
+        Remember that well-known ports required additional permissions to bind to, and to add permissions you must set 
+        allowPrivilegeEscalation: true.
+
+        Target environment: single-node kind cluster.
 
     <Important>
     - During this step, yaml files has been created yet, so do not use the yaml_read tool.
@@ -143,35 +117,56 @@ per_resource_research:
     {feedback}
     </feedback>
   expected_output: >
-    A json list of documents, each document containing:
-     - title
-     - namespace
-     - description
-    
-    where:
-      - title must match the same of the original given in the <resources> block.
-      - namespace must match the same of the original given in the <resources> block, unless for 
-      some reason the resource is not in the same namespace. (which will be very rare)
-      - description must be a narrative explaining the following elements, when applies:
-        - Each volume choice, access mode, securityContext linkage, plus a checklist of 
-        common pitfalls and mitigations. Include image-specific information if applies. 
-        - Security Context Rationale - why specific `runAsUser` / `fsGroup` / 
-        `readOnlyRootFilesystem` / `allowPrivilegeEscalation` / `capabilities` / 
-        `seccompProfile` / `automountServiceAccountToken` settings were chosen.  
-        - Ports Rationale - why specific ports were chosen.   (remember to prefer 
-        unprivileged ports, and map them to the original port using the services.)
-        - Proper and matching configMaps and secrets, taking in count the previous 
-        information about the image being used.
-        - Best-Practice Recommendations - actionable bullet list for operators (storage class hints, clean-up policies, monitoring hooks).  
-        - Preliminary YAML Manifest - fully indented, commented, and
-          nearly deployable (code-fenced).  
-          - MUST compile without validation errors if missing TODO values are
-            supplied.  
-          - All volume names must match their mounts. PVC when applies. 
-          - Read-only vs read-write flags explicitly shown.  
-          - Inline comments highlight why each volume exists and how it
-            addresses a specific risk.
-          - Ports definitions and bindings
+    Clear Instructions for the “Resources → Docs” Output
+
+    1. Format
+
+      Return **one JSON array**.  
+      Each element is an object with three keys:
+
+        {
+          "title": "<exact title from <resources>>",
+          "namespace": "<same namespace from <resources>>",
+          "description": "<see Section 2>"
+        }
+
+      (Different namespaces are allowed but rare—only change them when truly required.)
+
+    2. What Goes in description
+
+      - **Volumes** – Why each volume type/access mode was chosen; how it ties to
+        `securityContext`; pitfalls avoided.  Prefer to use non-root users to allow
+        the container to write to the volume when possible using 
+        `fsGroup` and `readOnlyRootFilesystem:True`.
+      - **Security context** – Reasoning for `runAsUser`, `fsGroup`,
+        `readOnlyRootFilesystem`, `allowPrivilegeEscalation`, `capabilities`,
+        `seccompProfile`, `automountServiceAccountToken`.  
+      - **Ports** – Why an ephemeral or dynamic/private container port was picked and
+        how the Service maps it to the original port. Always prefer ephemeral or dynamic/private ports
+        over well-known ports if possible.
+      - **ConfigMaps & Secrets** – Alignment with image needs and the security
+        model.  
+      - **Operator tips** – Storage-class hints, clean-up rules, monitoring
+        hooks.  
+      - **YAML draft** – Nearly deployable manifest:  
+          • Valid once TODOs are filled.  
+          • Volume names match mounts.  
+          • Read-only vs read-write flags shown.  
+          • Inline comments explain *why* each part exists (ports included).
+
+    3. Keep It Clean
+
+      - Prefer non-root users and ephemeral or dynamic/private ports.  
+      - Use solid practices, not ad-hoc fixes.  
+      - Stick to current, non-deprecated API versions.
+
+    4. Notes
+      - readOnlyRootFilesystem: true only remounts the image-layer root file-system ( / ) as read-only.
+      Any separate volume that the kubelet mounts into the container gets its own mount-point and keeps 
+      the access mode defined for that volume. Because the fsGroup logic is applied to volumes, those 
+      directories are still writable even when the root FS is read-only.
+      - Due a known issue with k8s, if runAsNonRoot is set to true, allowPrivilegeEscalation is set to false, even if you
+      add Capabilities to the container, the capabilities will not be applied.
 
   max_retries: 3
   agent: devops_researcher
