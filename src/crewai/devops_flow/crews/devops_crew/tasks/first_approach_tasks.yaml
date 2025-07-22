@@ -147,4 +147,5 @@ log_solution:
   max_retries: 3
   context:
    - write_solution
+   - verify_solution
   agent: devops_researcher

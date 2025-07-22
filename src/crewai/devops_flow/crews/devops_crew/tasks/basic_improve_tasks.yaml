@@ -19,7 +19,7 @@ analyse_manifest_issue:
     5. Generate the output.
     </Steps>
     
-
+    
     <Important>
     - Focus on solving gracefully and with production level code typical problems, such as permission
     problems, write permissions, network capabilities, non-root best-practices, volumes, volumes

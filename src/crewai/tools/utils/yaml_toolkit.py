@@ -1,5 +1,5 @@
 import pathlib
-from ruamel.yaml import YAML
+from \te import YAML
 
 def get_yaml_instance() -> YAML:
     """Returns a configured YAML instance for round-trip operations."""

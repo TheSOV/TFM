@@ -654,6 +654,7 @@ class DevopsFlow:
             
         logger.info("Project structure definition flow completed")
 
+
     async def get_images_flow(self):
         """
         Execute the image retrieval flow with approval/rejection feedback loop.
@@ -702,6 +703,7 @@ class DevopsFlow:
             
         logger.info("Image retrieval flow completed")
 
+
     async def second_research_flow(self):
         self.blackboard.phase = "Defining Project Structure and Getting Images"
         
@@ -709,6 +711,7 @@ class DevopsFlow:
         await self.define_project_structure_flow()
         
         await self.get_images_flow()
+
 
     async def per_resource_research_flow(self):
         """
@@ -762,6 +765,7 @@ class DevopsFlow:
             
         logger.info("Per-resource research flow completed")
 
+
     async def prepare_environment_flow(self): 
 
         self.clear_temp_files()
@@ -797,6 +801,7 @@ class DevopsFlow:
         if 'created_at' in json_record:
             json_record.pop('created_at')
         self.blackboard.records.append(Record(**json_record))   
+
 
     async def basic_test_and_improve_flow(self):
         try:
