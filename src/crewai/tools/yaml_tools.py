@@ -10,6 +10,9 @@ import json, pathlib
 from textwrap import dedent
 import re
 import src.crewai.tools.utils.yaml_toolkit as yt  # <-- import the low-level helpers
+import logging
+
+logger = logging.getLogger(__name__)
 
 # ------------------------------------------------------------------
 # 1) CLASS-BASED TOOLS  (offer fine-grained control & easy unit-tests)
@@ -23,9 +26,15 @@ class YAMLReadTool(BaseTool):
     args_schema : Type[BaseModel]   = _YAMLReadArgs
     _file_path: pathlib.Path = PrivateAttr()
 
-    def __init__(self, file_path: Union[str, pathlib.Path], **kwargs):
+    def __init__(self, file_path: Union[str, pathlib.Path], **kwargs) -> None:
+        """
+        Initialize YAMLReadTool with an absolute file path.
+        Args:
+            file_path (Union[str, pathlib.Path]): Path to the YAML file (relative, absolute, or with ~).
+            **kwargs: Additional keyword arguments for BaseTool.
+        """
         super().__init__(**kwargs)
-        self._file_path = pathlib.Path(file_path)
+        self._file_path = pathlib.Path(file_path).expanduser().resolve()
         self.description = (
             f"A tool to read content from the YAML file at '{self._file_path}'. "
             "The file path is set during initialization. It can read all documents from a multi-document file "
@@ -34,25 +43,32 @@ class YAMLReadTool(BaseTool):
 
     def _run(self, document_index: Optional[int] = None) -> str:
         try:
-
             p_path = self._file_path
+            logger.info(f"[YAMLReadTool._run] Attempting to read file: {p_path} (resolved: {p_path.resolve()})")
+            logger.debug(f"[YAMLReadTool._run] File exists: {p_path.exists()}")
             if not p_path.exists():
+                logger.error(f"[YAMLReadTool._run] File not found at {p_path} (resolved: {p_path.resolve()})")
                 return f"Error: File not found at {p_path}"
 
             yaml = yt.get_yaml_instance()
             docs = list(yaml.load_all(p_path))
+            logger.info(f"[YAMLReadTool._run] Successfully loaded {len(docs)} documents from {p_path}")
 
             if document_index is None:
                 # Read all documents and return them with their indices
                 indexed_docs = [{"index": i, "document": doc} for i, doc in enumerate(docs)]
+                logger.debug(f"[YAMLReadTool._run] Returning all {len(indexed_docs)} documents from {p_path}")
                 return json.dumps(indexed_docs, indent=2)
             else:
                 # Read a specific document
                 if document_index < 0 or document_index >= len(docs):
+                    logger.error(f"[YAMLReadTool._run] Document index {document_index} out of bounds (total: {len(docs)}) for file {p_path}")
                     return f"Error: Document index {document_index} is out of bounds for a file with {len(docs)} documents."
+                logger.debug(f"[YAMLReadTool._run] Returning document at index {document_index} from {p_path}")
                 return json.dumps(docs[document_index], indent=2)
 
         except Exception as e:
+            logger.exception(f"[YAMLReadTool._run] Error reading YAML file: {e}")
             return f"Error reading YAML file: {e}"
 
 
@@ -125,7 +141,7 @@ class YAMLEditTool(BaseTool):
 
     def __init__(self, file_path: Union[str, pathlib.Path], **kwargs):
         super().__init__(**kwargs)
-        self._file_path = pathlib.Path(file_path)
+        self._file_path = pathlib.Path(file_path).expanduser().resolve()
         self.description = dedent(f"""\
             A powerful tool to create and edit the YAML file at '{self._file_path}'.
             The file path is set during initialization. It creates the file if it doesn't exist.
@@ -178,16 +194,22 @@ class YAMLEditTool(BaseTool):
                }}
                ```
         """)
+        logger = logging.getLogger(__name__)
+        logger.info(f"[YAMLEditTool.__init__] Initialized with file_path: {self._file_path} (resolved: {self._file_path.resolve()})")
 
     def _run(self, operations: List[Dict[str, Any]], comment: str) -> str:
         p_path = self._file_path
+        logger.info(f"[YAMLEditTool._run] Editing file: {p_path} (resolved: {p_path.resolve()})")
+        logger.debug(f"[YAMLEditTool._run] File exists: {p_path.exists()}")
         yaml = yt.get_yaml_instance()
 
         try:
             if p_path.exists():
                 docs = list(yaml.load_all(p_path))
+                logger.info(f"[YAMLEditTool._run] Loaded {len(docs)} documents from {p_path}")
             else:
                 docs = []
+                logger.info(f"[YAMLEditTool._run] File does not exist; will create new YAML file at {p_path}")
 
             # Build a map of existing Kubernetes resources to detect duplicates.
             # The key is (apiVersion, kind, name, namespace), value is a dict with original index and content.

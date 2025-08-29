@@ -1,4 +1,5 @@
 write_solution:
+  name: write_solution
   description: >
     Persist-and-Lint Guide
 
@@ -51,9 +52,6 @@ write_solution:
     </feedback>
 
   expected_output: >
-    Ordered tool calls ending with:  
-    `Action: yaml_edit  Action_Inputs: { ... }`  
-    `Action: config_validator  Action_Inputs: { "enable_security_scan": true }`  
     Validation must succeed (except for low severity security_scan, Try to make the manifests comply with the best
     practices as much as possible).
 
@@ -69,6 +67,7 @@ write_solution:
   agent: devops_engineer
 
 verify_solution:
+  name: verify_solution
   description: >
       Lint-and-Fix Playbook
 
@@ -110,17 +109,15 @@ verify_solution:
       **Completion Criteria**  
       • `config_validator` exits cleanly (or only ignorable low-risk /
         best-practice notes).  
-      • File contains valid, well-formatted YAML and one resource per
-        document (`---` separators).  
       • All edits occur in the single file specified by **<blackboard>**—no
         new files.
 
   expected_output: >
-    Ordered tool calls ending with:  
-    `Action: config_validator  Action_Inputs: { "enable_security_scan": true }` 
-    `Action: yaml_read  Action_Inputs: { ... }` (if needed)  
-    `Action: yaml_edit  Action_Inputs: { ... }` (if needed)  
-    `Action: config_validator  Action_Inputs: { "enable_security_scan": true }`  (if needed) 
+    During the execution of the task, one in each iteration, the following actions must be performed: 
+      `Action: config_validator  Action_Inputs: { "enable_security_scan": true }` 
+      `Action: yaml_read  Action_Inputs: { ... }` (if needed)  
+      `Action: yaml_edit  Action_Inputs: { ... }` (if needed)  
+      `Action: config_validator  Action_Inputs: { "enable_security_scan": true }`  (if needed) 
     Validation must succeed (except for low severity security_scan, Try to make the manifests comply with the best
     practices as much as possible).
 
@@ -136,6 +133,7 @@ verify_solution:
   agent: devops_engineer
 
 log_solution:
+  name: log_solution
   description: >
     **Goal — create a record**
 

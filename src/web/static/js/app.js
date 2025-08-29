@@ -18,7 +18,22 @@ const app = createApp({
           </q-toolbar-title>
           <q-space />
 
+          <!-- Chat Label and Separator -->
+          <div class="q-mr-xs row items-center">
+            <q-btn
+              flat
+              dense
+              disable
+              no-caps
+              class="q-btn--rectangle text-white q-mr-xs"
+              style="pointer-events: none; min-width: 0;"
+              label="Chat with DevOps Researcher:"
+            />
+            <chat-popup class="q-mr-sm"></chat-popup>
+            <q-separator vertical color="white" class="q-mr-sm" />            
+          </div>
 
+          
 
           <!-- Interaction Mode Buttons -->
           <q-btn
@@ -67,6 +82,10 @@ const app = createApp({
             <q-tooltip>Cancel Process</q-tooltip>
           </q-btn>
 
+          <q-btn flat round icon="refresh" @click="fetchBlackboard" :loading="isRefreshing" color="white">
+            <q-tooltip>Refresh now</q-tooltip>
+          </q-btn>
+
           <q-tabs v-model="currentTab" dense active-color="white" indicator-color="white" align="right">
             <q-route-tab name="home" to="/" label="Home" icon="home" class="text-white" />
             <q-route-tab name="blackboard" to="/blackboard" label="Blackboard" icon="description" class="text-white" />
@@ -79,10 +98,6 @@ const app = createApp({
       <q-drawer v-if="isBlackboardRoute" side="left" v-model="leftDrawerOpen" bordered :width="400" class="bg-grey-1 q-pa-md">
         <events-panel v-if="blackboardEvents && blackboardEvents.length > 0" :events="blackboardEvents" class="full-height-card"></events-panel>
         <div v-else class="text-center q-pa-md text-grey-6"><q-icon name="hourglass_empty" size="2em" /><div>No events yet.</div></div>
-      </q-drawer>
-      <q-drawer v-if="isBlackboardRoute" side="right" v-model="rightDrawerOpen" bordered :width="400" class="bg-grey-1 q-pa-md">
-        <records-list v-if="blackboardRecords && blackboardRecords.length > 0" :records="blackboardRecords" class="full-height-card"></records-list>
-        <div v-else class="text-center q-pa-md text-grey-6"><q-icon name="hourglass_empty" size="2em" /><div>No records yet.</div></div>
       </q-drawer>
       
       <q-page-container>
@@ -423,7 +438,8 @@ const app = createApp({
 
   components: {
     'events-panel': window.components?.EventsPanel || { template: '<div></div>' },
-    'records-list': window.RecordsList || { template: '<div></div>' },
+    'records-list': window.components?.RecordsList || { template: '<div></div>' },
+    'chat-popup': window.components?.ChatPopup || { template: '<div></div>' },
   },
 
   computed: {
@@ -483,6 +499,13 @@ app.config.errorHandler = (err) => {
 
 // Make the apiService available globally as $api
 app.config.globalProperties.$api = window.apiService;
+
+// Register ChatPopup globally so <chat-popup> works
+if (window.components && window.components.ChatPopup) {
+  app.component('chat-popup', window.components.ChatPopup);
+} else {
+  console.warn('ChatPopup component is missing in window.components');
+}
 
 // Use the Quasar plugin and provide configuration
 app.use(Quasar, {

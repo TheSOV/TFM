@@ -192,5 +192,10 @@ traces.json
 
 # temp folder
 *temp
+graphs/*
+my_tests/*
+old/*
+blackboard.pkl
+
 
 

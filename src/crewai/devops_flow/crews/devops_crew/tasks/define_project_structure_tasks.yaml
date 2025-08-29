@@ -1,4 +1,5 @@
 preliminary_structure:
+  name: preliminary_structure
   description: >
     **Goal**  
     Create a *manifest blueprint* for the single environment following the "Advanced Plan".  
@@ -39,6 +40,7 @@ preliminary_structure:
   agent: devops_researcher
 
 structured_preliminary_structure:
+  name: structured_preliminary_structure
   description: >
     **Goal**  
     Produce the *authoritative manifest index* for the test environment in

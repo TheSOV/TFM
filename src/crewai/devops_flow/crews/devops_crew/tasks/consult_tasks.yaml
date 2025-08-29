@@ -1,0 +1,26 @@
+consult:
+  name: consult
+  description: >
+    You must answer the <user_request> using reliable and fact based information.
+    The main source of information is the the rag tool, but you can use the web browser
+    or the stack overflow tool to get additional information. If the <context> is present,
+    the answer must be relative to the context, otherwise, a give the best answer possible.
+
+    The <user_request> can come in the form of a chat, or a single question. If the <user_request>
+    is a chat, the answer must focus on the last message of the chat, but using the information
+    of the previous messages to provide a better answer.
+    
+    <user_request>
+    {user_request}
+    </user_request>
+
+    <context>
+    {context} 
+    </context>
+    
+  expected_output: >
+    A plain-text response, focused on solving the problem of the user request.
+  max_retries: 3
+  agent: devops_researcher
+
+

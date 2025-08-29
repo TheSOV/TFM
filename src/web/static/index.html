@@ -190,12 +190,17 @@
     <q-layout view="hHh Lpr lFf">
       <q-header elevated class="bg-primary text-white">
         <q-toolbar>
-          <q-toolbar-title class="text-h5 text-weight-bold">
-            <q-icon name="mdi-robot" class="q-mr-sm" />
+          <q-toolbar-title>
+            <q-avatar>
+              <img src="https://cdn.quasar.dev/logo-v2/svg/logo-mono-white.svg">
+            </q-avatar>
             DevopsFlow
           </q-toolbar-title>
           <q-space />
-
+          
+          <!-- Add Chat Button -->
+          <chat-popup></chat-popup>
+          
           <!-- Status Label -->
           <q-chip dense :label="status" color="white" text-color="primary" class="q-mr-md" v-if="status" />
 
@@ -286,6 +291,7 @@
   <script src="/static/js/pages/HomePage.js"></script>
   <script src="/static/js/pages/BlackboardPage.js"></script>
   <script src="/static/js/router/index.js"></script>
+  <script src="/static/js/components/ChatPopup.js"></script>
   <script src="/static/js/app.js"></script>
 
   <!-- Fallback for browsers without module support -->

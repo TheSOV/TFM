@@ -1,3 +1,20 @@
+# from crewai import Task
+# from crewai.project import CrewBase, task
+# from src.crewai.devops_flow.crews.devops_crew.BaseCrew import BaseCrew
+# import src.crewai.devops_flow.crews.devops_crew.outputs.outputs as outputs
+
+
+# @CrewBase   
+# class ConsultCrew(BaseCrew):
+#     """Description of your crew"""    
+#     tasks_config = 'tasks/consult_tasks.yaml'
+
+#     @task
+#     def consult(self) -> Task:
+#         return Task(
+#             config=self.tasks_config['consult'], # type: ignore[index]
+#             output_json=outputs.Solutions,
+#         )
 from typing import List
 
 from crewai import Agent, Crew, Task, Process
@@ -8,7 +25,6 @@ from crewai.knowledge.knowledge_config import KnowledgeConfig
 import os
 
 import src.services_registry.services as services
-from crewai import LLM
 
 from os import getenv
 
@@ -21,29 +37,17 @@ for file in os.listdir(crew_knowledge_base_path):
 crew_knowledge_source = TextFileKnowledgeSource(file_paths=files)
 crew_knowledge_config = KnowledgeConfig(results_limit=5, score_threshold=0.5)
 
-agent_llm = LLM(
-    model=os.getenv("AGENT_MAIN_MODEL"),
-    base_url=os.getenv("OPENROUTER_BASE_URL"),
-    api_key=os.getenv("OPENROUTER_API_KEY")
-)
-
-function_calling_llm = LLM(
-    model=os.getenv("AGENT_TOOL_CALL_MODEL"),
-    base_url=os.getenv("OPENROUTER_BASE_URL"),
-    api_key=os.getenv("OPENROUTER_API_KEY")
-)
 
 @CrewBase
-class BaseCrew:
+class ConsultCrew:
     """Description of your crew"""
-    def __init__(self, path: str):
+    def __init__(self):
         """Initialize the BaseCrew with the given path.
         
         Args:
             path (str): The base path for the DevOps flow operations.
         """
         super().__init__()
-        self.path = path
 
     agents: List[BaseAgent]
     tasks: List[Task]
@@ -53,7 +57,13 @@ class BaseCrew:
     # - Task: https://docs.crewai.com/concepts/tasks#yaml-configuration-recommended
     # - Agents: https://docs.crewai.com/concepts/agents#yaml-configuration-recommended
     agents_config = 'agents/agents.yaml'
-    # tasks_config = 'tasks/tasks.yaml'
+    tasks_config = 'tasks/consult_tasks.yaml'
+
+    @task
+    def consult(self) -> Task:
+        return Task(
+            config=self.tasks_config['consult'], # type: ignore[index]
+        )
 
     @before_kickoff
     def prepare_inputs(self, inputs):
@@ -68,36 +78,11 @@ class BaseCrew:
         return output
 
     @agent
-    def devops_engineer(self) -> Agent:
-        return Agent(
-            config=self.agents_config['devops_engineer'], # type: ignore[index]
-            # llm=agent_llm,
-            # function_calling_llm=function_calling_llm,
-            verbose=False,
-            memory=True,
-            tools=[
-                # services.get(f"file_create_{self.path}"),
-                # services.get(f"file_edit_{self.path}"),
-                # services.get(f"file_read_{self.path}"),
-                # services.get(f"file_version_history_{self.path}"),
-                # services.get(f"file_version_diff_{self.path}"),
-                # services.get(f"file_version_restore_{self.path}"),
-                services.get(f"yaml_read_{self.path}"),
-                services.get(f"yaml_edit_{self.path}"),
-                services.get(f"config_validator_{self.path}"),
-            ],
-            knowledge_sources=[crew_knowledge_source],
-            knowledge_config=crew_knowledge_config,
-            
-        )   
-
-    @agent
     def devops_researcher(self) -> Agent:
         return Agent(
             config=self.agents_config['devops_researcher'], # type: ignore[index]
-            # llm=agent_llm,
-            # function_calling_llm=function_calling_llm,
-            memory=True,
+            llm=getenv("AGENT_MAIN_MODEL"),
+            function_calling_llm=getenv("AGENT_TOOL_CALL_MODEL"),
             verbose=False,
             tools=[
                 services.get("rag"),
@@ -105,28 +90,6 @@ class BaseCrew:
                 services.get("web_browser_tool"),
                 services.get("docker_image_analysis_tool"),
                 services.get("docker_search_images_tool"),
-                services.get(f"yaml_read_{self.path}"),
-                # services.get(f"file_read_{self.path}"),
-                # services.get(f"file_version_history_{self.path}"),
-                # services.get(f"file_version_diff_{self.path}"),
-            ],
-            knowledge_sources=[crew_knowledge_source],
-            knowledge_config=crew_knowledge_config,
-        )
-
-    @agent
-    def devops_tester(self) -> Agent:
-        return Agent(
-            config=self.agents_config['devops_tester'], # type: ignore[index]
-            # llm=agent_llm,
-            # function_calling_llm=function_calling_llm,
-            verbose=False,
-            memory=False,
-            tools=[
-                services.get(f"kubectl_{self.path}"),
-                # services.get(f"file_read_{self.path}"),
-                services.get(f"yaml_read_{self.path}"),
-                services.get("popeye_scan"),
             ]
         )
 
@@ -136,9 +99,9 @@ class BaseCrew:
             agents=self.agents,  # Automatically collected by the @agent decorator
             tasks=self.tasks,    # Automatically collected by the @task decorator. 
             process=Process.sequential,
-            planning=True,
+            planning=False,
             verbose=False,
-            memory=True,
+            memory=False,
         )   
 
     

@@ -373,14 +373,19 @@ class DevopsFlow:
             return
 
         resources = [manifest.model_dump() for manifest in self.blackboard.manifests]
+        images = [image.model_dump() for image in self.blackboard.images]
 
         result = await PerResourceResearchCrew(path=self.path).crew().kickoff_async(
             inputs={
                 "blackboard": self.blackboard.export_blackboard(),
                 "feedback": feedback,
                 "resources": resources,
+                "images": images,
             }
         )
+
+        if len(result.json_dict['manifests']) != len(resources):
+            logger.warning(f"The number of manifests in the response does not match the number of resources. Expected {len(resources)}, got {len(result.json_dict['manifests'])}")
 
         self.blackboard.manifests = [Manifest(**manifest) for manifest in result.json_dict['manifests']]
 

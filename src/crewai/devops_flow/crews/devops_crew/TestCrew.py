@@ -1,6 +1,6 @@
 from crewai import Crew, Task, Process
 from crewai.project import CrewBase, task, crew
-from src.crewai.devops_flow.crews.devops_crew.BaseCrew import BaseCrew
+from src.crewai.devops_flow.crews.devops_crew.BaseCrewForTests import BaseCrew
 from src.crewai.devops_flow.crews.devops_crew.outputs.outputs import Issues
 from src.crewai.devops_flow.blackboard.utils.Record import Record
 from src.crewai.devops_flow.crews.devops_crew.guardrails.guardrails import validate_min_output_length_for_long_text

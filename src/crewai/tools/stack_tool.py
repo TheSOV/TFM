@@ -11,7 +11,7 @@ from crewai_tools import BraveSearchTool
 
 class StackOverflowSearchInput(BaseModel):
     """Input schema for StackOverflowSearchTool."""
-    query: str = Field(..., description="Search query for Stack Overflow.")
+    queries: List[str] = Field(..., description="Search queries for Stack Overflow.")
     max_questions: int = Field(20, description="Maximum number of questions to retrieve and analyze.")
     top_answers: int = Field(3, description="Number of top answers to retrieve per question.")
     min_answers: int = Field(1, description="Minimum number of answers a question must have.")
@@ -32,7 +32,7 @@ class StackOverflowSearchTool(BaseTool):
     """
     name: str = "stackoverflow_search"
     args_schema: Type[BaseModel] = StackOverflowSearchInput
-    description: str = "Search and analyze Stack Overflow for technical questions and answers. Useful for debugging and getting information about a specific topic. Use short and simple queries."
+    description: str = "Search and analyze multiple questions Stack Overflow for technical questions and answers. Useful for debugging and getting information about a specific topic. Use short and simple queries. You can search multiple,different topics and will receive a report for each topic."
 
     _stack_helper: StackExchangeHelper = PrivateAttr()
     _llm: Any = PrivateAttr()
@@ -264,7 +264,8 @@ class StackOverflowSearchTool(BaseTool):
             # If LLM analysis fails, fall back to simple title extraction
             raise ValueError(f"Failed to analyze results with LLM: {str(e)}")
     
-    def _run(
+
+    def one_run(
         self,
         query: str,
         max_questions: int = 20,
@@ -337,3 +338,17 @@ class StackOverflowSearchTool(BaseTool):
             if feedback["value"]:
                 error_msg += f"\nAdditional context: {feedback['value']}"
             return error_msg
+        
+
+    def _run(
+        self,
+        queries: List[str],
+        max_questions: int = 20,
+        top_answers: int = 3,
+        min_answers: int = 1,
+    ) -> str:
+       results = []
+       for query in queries:
+           answer = self.one_run(query, max_questions, top_answers, min_answers)
+           results.append(f"Question: {query}\n\n{answer}")
+       return "\n\n**************************\n\n".join(results)

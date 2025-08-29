@@ -14,8 +14,15 @@ from src.crewai.devops_flow.DevopsFlow import DevopsFlow
 import src.services_registry.services as services
 from src.web import state
 import asyncio
-from . import api_bp
+from typing import Optional, Dict, Any
+from flask import jsonify, request
+import traceback
 
+from . import api_bp
+from src.crewai.devops_flow.crews.devops_crew.ConsultCrew import ConsultCrew
+
+import logging
+logger = logging.getLogger(__name__)
 
 @api_bp.route('/init', methods=['POST'])
 def init_devops_flow() -> Dict[str, Any]:
@@ -205,6 +212,7 @@ def set_interaction_mode():
     except Exception as e:
         return jsonify({'status': 'error', 'message': f'Failed to set interaction mode: {str(e)}'}), 500
 
+
 @api_bp.route('/interaction/status', methods=['GET'])
 def get_interaction_status():
     """
@@ -223,6 +231,7 @@ def get_interaction_status():
         })
     except Exception as e:
         return jsonify({'status': 'error', 'message': f'Failed to get interaction status: {str(e)}'}), 500
+
 
 @api_bp.route('/interaction/resume', methods=['POST'])
 def resume_flow():
@@ -246,3 +255,47 @@ def resume_flow():
         return jsonify({'status': 'success', 'message': 'Flow resume signal sent.'})
     except Exception as e:
         return jsonify({'status': 'error', 'message': f'Failed to resume flow: {str(e)}'}), 500
+
+
+@api_bp.route('/consult-crew/chat', methods=['POST'])
+def chat_with_crew() -> Dict[str, Any]:
+    """
+    Handle chat requests with ConsultCrew.
+    
+    Expects JSON with:
+    - question (str): The user's question/input
+    - conversation_id (str, optional): ID of an existing conversation
+    
+    Returns:
+        JSON response with status, answer, and conversation_id
+    """
+    data = request.get_json()
+    if not data:
+        return jsonify({'status': 'error', 'message': 'No data provided'}), 400
+        
+    question = data.get('question')
+    conversation_id = data.get('conversation_id')
+    
+    if not question or not isinstance(question, str):
+        return jsonify({'status': 'error', 'message': 'Valid question is required'}), 400
+
+    try:
+        # Create a new ConsultCrew instance for this request
+        crew = ConsultCrew().crew()
+        
+        # Execute the task with the user's question
+        answer = crew.kickoff(inputs={'user_request': question, 'context': None})
+        
+        return jsonify({
+            'status': 'success',
+            'answer': answer.raw,
+            'conversation_id': conversation_id or 'new'
+        })
+        
+    except Exception as e:
+        logger.error(f'Error in chat_with_crew: {str(e)}')
+        logger.error(traceback.format_exc())
+        return jsonify({
+            'status': 'error',
+            'message': 'An error occurred while processing your request'
+        }), 500

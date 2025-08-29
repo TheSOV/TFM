@@ -18,7 +18,7 @@ class BasicImproveCrew(BaseCrew):
         return Task(
             config=self.tasks_config['analyse_manifest_issue'], # type: ignore[index]
             output_json=outputs.Solutions,
-            guardrail=LLMGuardrail("Verify that the proposed changes, in the changes field, of each solution, specifically addressing, and only addressing the problems described in the issues field, or related to them.", llm=LLM(model=os.getenv("GUARDRAIL_MODEL")))
+            guardrail=LLMGuardrail("Verify that the proposed changes, in the changes field, of each solution, specifically addressing, and only addressing the problems described in the issues field, or related to them. Take in count that the changes proposed are only to to fix and make corrections in the Yaml files, so any problem that requires any action out of modifying the Yaml files, should not be taked into account.", llm=LLM(model=os.getenv("GUARDRAIL_MODEL")))
         )
 
     @task

@@ -1,4 +1,5 @@
 get_image_names:
+  name: get_image_names
   description: >
     **Goal**  
     Derive a list of container image names from the advanced plan. No need to get details, repos,

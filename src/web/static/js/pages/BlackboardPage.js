@@ -82,9 +82,6 @@ window.BlackboardPage = {
                 <q-btn flat round icon="refresh" @click="fetchBlackboard" :loading="isRefreshing" color="white">
                   <q-tooltip>Refresh now</q-tooltip>
                 </q-btn>
-                <q-btn flat round icon="article" @click="$root.rightDrawerOpen = !$root.rightDrawerOpen" color="white">
-                  <q-tooltip>Toggle Records</q-tooltip>
-                </q-btn>
               </q-btn-group>
             </div>
           </q-card-section>
@@ -98,20 +95,35 @@ window.BlackboardPage = {
               <div>Content will appear here once a DevopsFlow is initiated.</div>
             </div>
             <div v-else class="row q-col-gutter-md full-height">
-              <!-- Left Column -->
-              <div class="col-xs-12 col-md-6">
+              <!-- Left Column - User Request, General Info, Images, and Manifests -->
+              <div class="col-4">
                 <div class="column-wrapper q-gutter-y-md">
                   <user-request-display :request="userRequest" :basic-plan="basicPlanContent" :advanced-plan="advancedPlanContent"></user-request-display>
                   <general-info-display :general-info="generalInfo"></general-info-display>
-                  <images-list :images="images"></images-list>
-                  <manifests-tree :manifests-data="manifests"></manifests-tree>
+                  <images-list :images="images" class="q-mt-md"></images-list>
+                  <manifests-tree :manifests-data="manifests" class="q-mt-md"></manifests-tree>
+                </div>
+              </div>
+              
+              <!-- Middle Column - Issues -->
+              <div class="col-4">
+                <div class="column-wrapper">
+                  <issues-list :issues="issues"></issues-list>
                 </div>
               </div>
 
-              <!-- Right Column -->
-              <div class="col-xs-12 col-md-6">
-                <div class="column-wrapper q-gutter-y-md">
-                  <issues-list :issues="issues"></issues-list>
+              <!-- Right Column - Activity Log -->
+              <div class="col-4">
+                <div class="column-wrapper">
+                  <q-card class="full-height">
+                    <q-card-section class="bg-grey-2 q-pa-sm">
+                      <div class="text-subtitle2 text-grey-9">Activity Log</div>
+                    </q-card-section>
+                    <q-separator />
+                    <q-card-section class="scroll" style="height: 100%; overflow-y: auto;">
+                      <records-list :records="records"></records-list>
+                    </q-card-section>
+                  </q-card>
                 </div>
               </div>
             </div>

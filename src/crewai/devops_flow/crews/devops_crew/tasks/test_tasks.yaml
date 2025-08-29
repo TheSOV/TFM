@@ -1,4 +1,5 @@
 popeye_scan:
+  name: popeye_scan
   description: >
     **Goal**  
     Run the **Popeye** diagnostic tool against the current **test** cluster and
@@ -15,8 +16,8 @@ popeye_scan:
     most useful information to the devops engineer.
 
     <Important>
-    - Ignore the pods owned by Kubernetes core system.
-    - Focus on extracting relevant information, about all the possible issues found in the cluster,
+    - Ignore the pods or resources owned by Kubernetes core system.
+    - Focus on extracting relevant information, about all the possible issues found in the cluster (related to our config files),
     only taking in count the information obtained from the tools.
     </Important>
 
@@ -34,7 +35,8 @@ popeye_scan:
   async_execution: true
   agent: devops_tester   
 
-kubectl_status_check:
+kubectl_status_check: 
+  name: kubectl_status_check
   description: >
     **Goal**  
     Use raw **kubectl** commands to inspect cluster health and produce practical
@@ -98,7 +100,9 @@ kubectl_status_check:
     that is useful to debug and solve the issue should be included.
 
     <Important>
-    Ignore the pods owned by Kubernetes core system.
+    - Ignore the pods or resources owned by Kubernetes core system.
+    - Focus on extracting relevant information, about all the possible issues found in the cluster (related to our config files),
+    only taking in count the information obtained from the tools.
     </Important>
 
     <blackboard>
@@ -118,6 +122,7 @@ kubectl_status_check:
   agent: devops_tester   
 
 aggregate_cluster_issues:
+  name: aggregate_cluster_issues
   description: >
     **Goal**  
     In the context of the task, you will have the Popeye and kubectl findings, 
@@ -137,7 +142,7 @@ aggregate_cluster_issues:
     5. Produce a clean plain text checklist of issues.
 
     <Important>
-    - Ignore the pods owned by Kubernetes core system.
+    - Ignore the pods or resources owned by Kubernetes core system.
     - Focus on extracting relevant information, about all the possible issues found in the cluster,
     only taking in count the information obtained from the tools.
     - Make deep analysis to merge duplicate or related items into one comprehensive,
@@ -168,6 +173,7 @@ aggregate_cluster_issues:
   agent: devops_tester
 
 classify_cluster_issues:
+  name: classify_cluster_issues
   description: >
     **Goal**
     Classify the issues into High, Medium and Low severity
@@ -196,6 +202,7 @@ classify_cluster_issues:
   agent: devops_tester
 
 log_cluster_issues:
+  name: log_cluster_issues
   description: >
     **Goal — create a JSON record**
 

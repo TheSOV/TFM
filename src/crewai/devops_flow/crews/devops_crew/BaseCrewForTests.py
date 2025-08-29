@@ -138,7 +138,7 @@ class BaseCrew:
             process=Process.sequential,
             planning=True,
             verbose=False,
-            memory=True,
+            memory=False,
         )   
 
     

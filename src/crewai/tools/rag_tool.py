@@ -8,9 +8,11 @@ from typing import Optional
 from crewai import LLM
 import os
 
+from typing import List
+
 class RagToolInput(BaseModel):
     """Input schema for MyCustomTool."""
-    query: str = Field(..., description="Query to search in the knowledge base.")
+    queries: List[str] = Field(..., description="List of queries to search in the knowledge base.")
     collection: str = Field(..., description="Collection to search in.")
     retrieve_limit: Optional[int] = Field(25, description="Limit of results to initial retrieve, before reranking.")
     rerank_limit: Optional[int] = Field(10, description="Limit of results to return after reranking. This is the final number of results returned by the tool.")
@@ -48,7 +50,7 @@ class RagTool(BaseTool):
             )
 
         # Set dynamic description if helpers are available
-        desc = "The rag_tool is used to search in the knowledge base. Specify the query and the collection to search in. "
+        desc = "The rag_tool is used to search in the knowledge base. You can search multiple, different topics and will receive a report for each topic. Specify the list of queries and the collection to search in. "
         if self._weaviate_helper is not None:
             try:
                 collections = []
@@ -66,7 +68,8 @@ class RagTool(BaseTool):
             desc += "(Weaviate helper not available at initialization.)"
         self.description = desc
 
-    def _run(self, query: str, collection: str, retrieve_limit: int = 25, rerank_limit: int = 10) -> str:
+
+    def one_run(self, query: str, collection: str, retrieve_limit: int = 25, rerank_limit: int = 10) -> str:
         """
         Run a RAG query using the injected helpers.
 
@@ -98,5 +101,12 @@ class RagTool(BaseTool):
         <documents>{reranked_docs}</documents>
         """)
         return report
+
+    def _run(self, queries: list[str], collection: str, retrieve_limit: int = 25, rerank_limit: int = 10) -> str:
+        results = []
+        for query in queries:
+            answer = self.one_run(query, collection, retrieve_limit, rerank_limit)
+            results.append(f"Question: {query}\n\n{answer}")
+        return "\n\n**************************\n\n".join(results)
 
 

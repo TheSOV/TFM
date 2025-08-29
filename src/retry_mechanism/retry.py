@@ -15,6 +15,7 @@ from __future__ import annotations
 import asyncio
 import time
 from functools import wraps
+import logging
 from typing import Any, Callable, Type, TypeVar, Union
 
 from tenacity import (
@@ -25,6 +26,8 @@ from tenacity import (
     RetryCallState,
 )
 
+logger = logging.getLogger(__name__)
+
 T = TypeVar("T")  # Return type of the decorated function
 
 
@@ -34,16 +37,27 @@ T = TypeVar("T")  # Return type of the decorated function
 # ---------------------------------------------------------------------------
 class RetryFeedback:
     def __init__(self, feedback_ref: dict[str, str]):
-        self.feedback_ref = feedback_ref
+        if isinstance(feedback_ref, str) and feedback_ref.strip() != "":
+            self.feedback_ref = {'value': feedback_ref}
+        else:
+            self.feedback_ref = feedback_ref
 
     def __call__(self, retry_state: RetryCallState) -> None:
         if retry_state.outcome.failed:
             exc = retry_state.outcome.exception()
             attempt = retry_state.attempt_number
+
+            # Log detailed error information
+            log_msg = f"Retry attempt {attempt} for '{retry_state.fn.__name__ if retry_state.fn else 'N/A'}' failed."
+            logger.error(log_msg)
+            logger.error(f"Exception: {exc}", exc_info=True) # exc_info=True logs the traceback
+
+            # Preserve original feedback mechanism
             msg = f"Attempt {attempt} failed: {exc}"
-            self.feedback_ref["value"] = (
-                f"{self.feedback_ref['value']}\n{msg}" if self.feedback_ref["value"] else msg
-            )
+            if self.feedback_ref:
+                self.feedback_ref["value"] = (
+                    f"{self.feedback_ref.get('value', '')}\n{msg}" if self.feedback_ref.get('value') else msg
+                )
 
 
 # ---------------------------------------------------------------------------

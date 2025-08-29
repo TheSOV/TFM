@@ -1,4 +1,5 @@
 per_resource_research:
+  name: per_resource_research
   description: >
     **Start Here**  
     • If a **<feedback>** block is present, fix those items first. Feedback 
@@ -6,7 +7,8 @@ per_resource_research:
 
     **Goal**  
     Research and design a production-grade Kubernetes manifest for each of the resources  
-    **<resources>** referenced in the **<blackboard>**.  
+    **<resources>** referenced in the **<blackboard>**.  Use the information in the **<images>**
+    to fill specific details about the image being used in the resources.
 
     The deliverable must anticipate and mitigate the most common volume-related
     failures—e.g. read-only mounts, missing PersistentVolumeClaims (PVCs),
@@ -74,7 +76,7 @@ per_resource_research:
         - Security	Define securityContext, seccompProfile, and drop unused capabilities.
         - API versions	Use only current, non-deprecated APIs.
 
-    5. Draft the YAML
+    5. Draft the YAML (Mandatory)
 
         Start with the minimal skeleton for the workload kind.
 
@@ -109,10 +111,19 @@ per_resource_research:
     {resources}
     </resources>
 
+
+    The images you must analyze are:
+    <images>
+    {images}
+    </images>
+
+
+    The blackboard is with current process information:
     <blackboard>
     {blackboard}
     </blackboard>
 
+    If applies, you must take into account the feedback given in the <feedback> block.
     <feedback>
     {feedback}
     </feedback>
@@ -127,46 +138,13 @@ per_resource_research:
         {
           "title": "<exact title from <resources>>",
           "namespace": "<same namespace from <resources>>",
-          "description": "<see Section 2>"
+          "description": "a markup summary, with all the details about the configuration, example of yaml."
         }
 
-      (Different namespaces are allowed but rare—only change them when truly required.)
+    Extremely important:
+    - the final response must contain all the manifest present in the <resources> block.
+    - the plan will be unable after this step, so include all the information required. You can extend the answer as much as you need. (try a minimal of 1000 characters of useful information in each description)
 
-    2. What Goes in description
-
-      - **Volumes** – Why each volume type/access mode was chosen; how it ties to
-        `securityContext`; pitfalls avoided.  Prefer to use non-root users to allow
-        the container to write to the volume when possible using 
-        `fsGroup` and `readOnlyRootFilesystem:True`.
-      - **Security context** – Reasoning for `runAsUser`, `fsGroup`,
-        `readOnlyRootFilesystem`, `allowPrivilegeEscalation`, `capabilities`,
-        `seccompProfile`, `automountServiceAccountToken`.  
-      - **Ports** – Why an ephemeral or dynamic/private container port was picked and
-        how the Service maps it to the original port. Always prefer ephemeral or dynamic/private ports
-        over well-known ports if possible.
-      - **ConfigMaps & Secrets** – Alignment with image needs and the security
-        model.  
-      - **Operator tips** – Storage-class hints, clean-up rules, monitoring
-        hooks.  
-      - **YAML draft** – Nearly deployable manifest:  
-          • Valid once TODOs are filled.  
-          • Volume names match mounts.  
-          • Read-only vs read-write flags shown.  
-          • Inline comments explain *why* each part exists (ports included).
-
-    3. Keep It Clean
-
-      - Prefer non-root users and ephemeral or dynamic/private ports.  
-      - Use solid practices, not ad-hoc fixes.  
-      - Stick to current, non-deprecated API versions.
-
-    4. Notes
-      - readOnlyRootFilesystem: true only remounts the image-layer root file-system ( / ) as read-only.
-      Any separate volume that the kubelet mounts into the container gets its own mount-point and keeps 
-      the access mode defined for that volume. Because the fsGroup logic is applied to volumes, those 
-      directories are still writable even when the root FS is read-only.
-      - Due a known issue with k8s, if runAsNonRoot is set to true, allowPrivilegeEscalation is set to false, even if you
-      add Capabilities to the container, the capabilities will not be applied.
 
   max_retries: 3
   agent: devops_researcher

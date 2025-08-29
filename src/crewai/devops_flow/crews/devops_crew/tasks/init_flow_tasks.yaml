@@ -1,4 +1,5 @@
 gather_information:
+  name: gather_information
   description: >
     Blueprint-Planning Guide (Markdown Output)
 
@@ -113,6 +114,7 @@ gather_information:
   agent: devops_researcher
 
 research_project:
+  name: research_project
   description: >
     Blueprint-Hardening Guide (Evidence-Driven)
 
@@ -170,6 +172,7 @@ research_project:
   agent: devops_researcher
 
 create_advanced_plan:
+  name: create_advanced_plan
   description: >
     **Start Here**  
     • If a **<feedback>** block is present, fix those items first. Feedback 

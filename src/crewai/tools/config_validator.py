@@ -49,9 +49,14 @@ class ConfigValidatorTool(BaseTool):
     _file_path: Path = None
 
     def __init__(self, file_path: str | Path, **kwargs) -> None:
-        """Initialize the ConfigValidatorTool."""
+        """
+        Initialize the ConfigValidatorTool with an absolute file path.
+        Args:
+            file_path (str | Path): Path to the configuration file (relative, absolute, or with ~).
+            **kwargs: Additional keyword arguments for BaseTool.
+        """
         super().__init__(**kwargs)
-        self._file_path = Path(file_path)
+        self._file_path = Path(file_path).expanduser().resolve()
         self.description = f"Validates the configuration file at {self._file_path}."
 
     def _run(

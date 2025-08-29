@@ -3,6 +3,7 @@ from __future__ import annotations
 # Standard library imports
 import asyncio
 import json
+import logging
 import os
 
 from typing import Any, Dict, List, Optional, Type
@@ -21,11 +22,12 @@ from src.retry_mechanism.retry import retry_with_feedback
 
 __all__ = ["WebBrowserToolInput", "WebBrowserTool"]
 
+logger = logging.getLogger(__name__)
 
 class WebBrowserToolInput(BaseModel):
     """Input schema for :class:`WebBrowserTool`."""
 
-    query: str = Field(..., description="Initial query provided by the user.")
+    queries: List[str] = Field(..., description="Initial queries provided by the user.")
     detailed: bool = Field(
         True,
         description="Whether to generate a detailed markdown report (uses more tokens).",
@@ -51,7 +53,8 @@ class WebBrowserTool(BaseTool):
     description: str = (
         "Search the web using multiple refined queries, scrape the top-matching "
         "pages, and return a structured markdown report answering the question "
-        "and highlighting related topics."
+        "and highlighting related topics. You can search multiple,different topics "
+        "and will receive a report for each topic."
     )
 
     _llm: Any = PrivateAttr()
@@ -65,6 +68,7 @@ class WebBrowserTool(BaseTool):
         super().__init__(**kwargs)
         self._brave_search = brave_search
         self._llm = LLM(model=os.getenv("TOOL_MODEL", "gpt-4.1-mini"), temperature=0)
+        logger.info("WebBrowserTool initialized.")
 
     # ------------------------------------------------------------------
     # Step 1 – Generate improved queries
@@ -94,7 +98,9 @@ class WebBrowserTool(BaseTool):
         </feedback>
         """
         try:
+            logger.info(f"Generating queries for original query: '{query}'")
             response = self._llm.call(prompt)
+            logger.info(f"LLM response for query generation: {response}")
 
             improved: List[str] = json.loads(response)
 
@@ -102,6 +108,7 @@ class WebBrowserTool(BaseTool):
                 raise ValueError("LLM did not return two improved queries")
             return [query, *improved]
         except Exception as exc:
+            logger.error(f"Failed to generate queries: {exc}", exc_info=True)
             if feedback is not None:
                 feedback["value"] = f"Failed to generate queries: {exc}"
             raise
@@ -111,19 +118,21 @@ class WebBrowserTool(BaseTool):
     # ------------------------------------------------------------------
     async def _search_queries_async(self, queries: List[str]) -> str:
         """Run BraveSearch for each query concurrently and concatenate raw results."""
-
-        loop = asyncio.get_running_loop()
+        logger.info(f"Performing async search for queries: {queries}")
 
         async def _run_search(q: str) -> str:
             try:
-                # BraveSearchTool is sync; execute in thread pool to avoid blocking.
-                raw = await loop.run_in_executor(None, self._brave_search._run, q)
-                return f"\n=== Results for: {q} ===\n{raw}"
+                logger.info(f"Running search for query: '{q}'")
+                result = self._brave_search.run(query=q)  # type: ignore[no-any-return]
+                logger.info(f"Search for '{q}' returned {len(result)} characters.")
+                return result
             except Exception as exc:
-                return f"\n=== Results for: {q} (FAILED: {exc}) ===\n"
+                logger.error(f"Error during search for query '{q}': {exc}", exc_info=True)
+                return ""
 
-        gathered = await asyncio.gather(*[_run_search(q) for q in queries])
-        return "\n".join(gathered)
+        results = await asyncio.gather(*[_run_search(q) for q in queries])
+        logger.info("Async search finished.")
+        return "\n\n".join(r for r in results if r)
 
     # ------------------------------------------------------------------
     # Step 3 – Select best matches
@@ -170,11 +179,20 @@ class WebBrowserTool(BaseTool):
         </feedback>
         """
         try:
+            logger.info("Selecting top results from raw search output.")
+            logger.info("Calling LLM to select top results.")
             response = self._llm.call(prompt)
+            logger.info(f"LLM response for top results selection: {response}")
+
             parsed: List[Dict[str, str]] = json.loads(response)
             urls = [itm["url"] for itm in parsed][:10]
+
+            if not isinstance(urls, list) or not all(isinstance(u, str) for u in urls):
+                raise ValueError("LLM did not return a list of URLs")
+            logger.info(f"Selected top URLs: {urls}")
             return urls
         except Exception as exc:
+            logger.error(f"Failed to select top results: {exc}", exc_info=True)
             if feedback is not None:
                 feedback["value"] = f"Failed to select top results: {exc}"
             raise
@@ -184,16 +202,23 @@ class WebBrowserTool(BaseTool):
     # ------------------------------------------------------------------
     async def _scrape_async(self, urls: List[str]) -> Dict[str, str]:
         """Scrape URLs concurrently using crawl4ai's AsyncWebCrawler."""
-
+        logger.info(f"Scraping URLs: {urls}")
         async with AsyncWebCrawler() as crawler:
             tasks = [crawler.arun(url=u) for u in urls]
             results = await asyncio.gather(*tasks, return_exceptions=False)
 
+        logger.info("Async scraping finished.")
         contents: Dict[str, str] = {}
         for url, res in zip(urls, results):
             try:
-                contents[url] = res.markdown if hasattr(res, "markdown") else str(res)
-            except Exception:
+                content = res.markdown if hasattr(res, "markdown") else str(res)
+                if content:
+                    contents[url] = content
+                    logger.info(f"Successfully scraped {url} ({len(content)} chars).")
+                else:
+                    logger.warning(f"Scraping {url} returned no content.")
+            except Exception as exc:
+                logger.error(f"Error scraping {url}: {exc}", exc_info=True)
                 continue
         return {k: v for k, v in contents.items() if v}
 
@@ -229,8 +254,12 @@ class WebBrowserTool(BaseTool):
         </feedback>
         """
         try:
-            return self._llm.call(prompt)
+            logger.info(f"Generating report for query: '{query}'")
+            report = self._llm.call(prompt)
+            logger.info("LLM call for report generation finished.")
+            return report
         except Exception as exc:
+            logger.error(f"Failed to generate report: {exc}", exc_info=True)
             if feedback is not None:
                 feedback["value"] = f"Failed to generate report: {exc}"
             raise
@@ -238,41 +267,75 @@ class WebBrowserTool(BaseTool):
     # ------------------------------------------------------------------
     # Public entrypoint – orchestrate everything
     # ------------------------------------------------------------------
-    def _run(self, query: str, detailed: bool = True) -> str:  # type: ignore[override]
+    async def async_one_run(self, query: str, detailed: bool = True) -> str:
         """Run the full pipeline and return a markdown report."""
 
         feedback: Dict[str, str] = {"value": ""}
+        logger.info(f"Starting web search for query: '{query}'")
 
         # Step 1 – Generate alternative queries
         try:
-            queries = self._generate_queries(query, feedback=feedback)
+            logger.info("Step 1: Generating queries...")
+            queries = await asyncio.to_thread(self._generate_queries, query, feedback=feedback)
+            logger.info(f"Generated queries: {queries}")
         except Exception as exc:
+            logger.error(f"Error in _generate_queries: {exc}", exc_info=True)
             return f"Error in _generate_queries: {exc}\n{feedback['value']}"
 
         # Step 2 – Search the web (async)
         try:
-            raw_results = asyncio.run(self._search_queries_async(queries))
+            logger.info("Step 2: Searching queries...")
+            raw_results = await self._search_queries_async(queries)
+            logger.info(f"Search returned {len(raw_results)} characters.")
         except Exception as exc:
+            logger.error(f"Error in _search_queries_async: {exc}", exc_info=True)
             return f"Error in _search_queries_async: {exc}\n{feedback['value']}"
 
         # Step 3 – Select top URLs
         try:
-            top_urls = self._select_top_results(raw_results, query, feedback=feedback)
+            logger.info("Step 3: Selecting top results...")
+            top_urls = await asyncio.to_thread(self._select_top_results, raw_results, query, feedback=feedback)
             if not top_urls:
+                logger.warning("No relevant results were found.")
                 return "No relevant results were found for the given query."
+            logger.info(f"Selected top URLs: {top_urls}")
         except Exception as exc:
+            logger.error(f"Error in _select_top_results: {exc}", exc_info=True)
             return f"Error in _select_top_results: {exc}\n{feedback['value']}"
 
         # Step 4 – Scrape selected URLs
         try:
-            documents = asyncio.run(self._scrape_async(top_urls))
+            logger.info("Step 4: Scraping URLs...")
+            documents = await self._scrape_async(top_urls)
             if not documents:
+                logger.warning("Failed to retrieve content from selected URLs.")
                 return "Failed to retrieve content from selected URLs."
+            logger.info(f"Scraped {len(documents)} documents.")
         except Exception as exc:
+            logger.error(f"Error in _scrape_async: {exc}", exc_info=True)
             return f"Error in _scrape_async: {exc}\n{feedback['value']}"
 
         # Step 5 – Generate final report
         try:
-            return self._generate_report(query, documents, feedback=feedback)
+            logger.info("Step 5: Generating final report...")
+            report = await asyncio.to_thread(self._generate_report, query, documents, feedback=feedback)
+            logger.info("Report generated successfully.")
+            return report
         except Exception as exc:
+            logger.error(f"Error in _generate_report: {exc}", exc_info=True)
             return f"Error in _generate_report: {exc}\n{feedback['value']}"
+
+    def one_run(self, query: str, detailed: bool = True) -> str:
+        """Run the full pipeline for a single query."""
+        return asyncio.run(self.async_one_run(query, detailed))
+
+    def _run(self, queries: List[str], detailed: bool = True) -> str:  # type: ignore[override]
+        """Run the full pipeline for multiple queries concurrently and return a markdown report."""
+
+        async def _run_async_tasks():
+            tasks = [self.async_one_run(query, detailed) for query in queries]
+            return await asyncio.gather(*tasks)
+
+        answers = asyncio.run(_run_async_tasks())
+        results = [f"Question: {q}\n\n{a}" for q, a in zip(queries, answers)]
+        return "\n\n**************************\n\n".join(results)
