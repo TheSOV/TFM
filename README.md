@@ -5,7 +5,7 @@
 
 # TFM - AI-Powered DevOps Automation System
 
-The repository contains a DevOps automation assistant that leverages AI agents, vector databases, and comprehensive tooling to streamline infrastructure management and operations. This is repo is indexed with DeepWiki, you can ask questions about it [here](https://deepwiki.com/TheSOV/TFM).
+The repository contains a DevOps automation assistant that leverages AI agents, vector databases, and comprehensive tooling to streamline infrastructure management and operations, designed for Kubernetes as part of the final project of my Master's Thesis in Applied Artificial Intelligence. This is repo is indexed with DeepWiki, you can ask questions about it [here](https://deepwiki.com/TheSOV/TFM).
 
 ## Features
 
